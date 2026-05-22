@@ -1,18 +1,19 @@
 #!/bin/bash
 # MirrorBallBot - System Configuration Script
-# Run AFTER cloning the repository
-# Run with: bash mbb_install.sh (from within the src directory)
-# Safe to run multiple times (idempotent)
+# Run from src directory after cloning
+# Smart uncomment-first approach for config.txt AND crontab
 
 set -e
 
-echo ""
 echo "=========================================="
 echo "MirrorBallBot System Configuration"
 echo "=========================================="
-echo ""
 
-# Check if we're in the correct directory (src folder)
+# Keep sudo alive to avoid multiple password prompts
+sudo -v
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+
+# Check if we're in the correct directory
 if [ ! -f "mbb_gui.py" ] || [ ! -f "mbb_install.sh" ]; then
     echo "Error: Please run this script from the src directory"
     echo "  cd /home/pi/mirrorballbot/src"
@@ -20,21 +21,15 @@ if [ ! -f "mbb_gui.py" ] || [ ! -f "mbb_install.sh" ]; then
     exit 1
 fi
 
-# Get the base directory (one level up from src)
+# Get the base directory
 BASE_DIR="$(cd .. && pwd)"
 
-echo "Repository root: $BASE_DIR"
-echo "Source directory: $BASE_DIR/src"
+# ============================================================================
+# Install Python packages
+# ============================================================================
 
-# Update system
 echo ""
-echo "Updating system... it might take several minutes"
-sudo apt update
-sudo apt upgrade -y
-
-# Install required Python packages
-echo ""
-echo "Installing Python libraries..."
+echo "→ Installing Python libraries..."
 sudo apt install -y \
     python3-numpy \
     python3-opencv \
@@ -42,51 +37,97 @@ sudo apt install -y \
     python3-gpiozero \
     python3-smbus2 \
     python3-pil \
+    python3-pil.imagetk \
     python3-tk
 
-# Configure config.txt (only add missing settings)
+# ============================================================================
+# Configure config.txt (smart uncomment-first approach)
+# ============================================================================
+
 CONFIG="/boot/firmware/config.txt"
 echo ""
-echo "Checking config.txt settings..."
+echo "→ Checking config.txt settings..."
 
-# Function to add setting if missing
-add_if_missing() {
-    if ! grep -q "^$1" "$CONFIG"; then
-        echo "  Adding: $1"
-        echo "$1" | sudo tee -a "$CONFIG" > /dev/null
+# Function: Uncomment if exists as comment, add if missing, update if different
+enable_setting() {
+    local setting="$1"
+    local value="$2"
+    local full_line="$setting=$value"
+    
+    if grep -q "^#$setting=" "$CONFIG"; then
+        # Setting exists but commented - uncomment it
+        echo "  Uncommenting: $setting"
+        sudo sed -i "s/^#$setting=.*/$full_line/" "$CONFIG"
+    elif grep -q "^$setting=" "$CONFIG"; then
+        # Setting already enabled - check if value needs update
+        current_value=$(grep "^$setting=" "$CONFIG" | head -1 | cut -d'=' -f2)
+        if [ "$current_value" != "$value" ]; then
+            echo "  Updating: $setting from $current_value to $value"
+            sudo sed -i "s/^$setting=.*/$full_line/" "$CONFIG"
+        else
+            echo "  Already correct: $setting"
+        fi
     else
-        echo "  Already present: $1"
+        # Setting doesn't exist at all - add it
+        echo "  Adding: $full_line"
+        echo "$full_line" | sudo tee -a "$CONFIG" > /dev/null
     fi
 }
 
-# I2C settings
-add_if_missing "dtparam=i2c_arm=on"
-add_if_missing "dtparam=i2c_arm_baudrate=200000"
+# Function: Uncomment overlay if exists, add if missing
+enable_overlay() {
+    local overlay="$1"
+    
+    if grep -q "^#$overlay" "$CONFIG"; then
+        # Overlay exists but commented - uncomment it
+        echo "  Uncommenting: $overlay"
+        sudo sed -i "s/^#$overlay/$overlay/" "$CONFIG"
+    elif grep -q "^$overlay" "$CONFIG"; then
+        # Overlay already enabled
+        echo "  Already enabled: $overlay"
+    else
+        # Overlay doesn't exist - add it
+        echo "  Adding: $overlay"
+        echo "$overlay" | sudo tee -a "$CONFIG" > /dev/null
+    fi
+}
 
-# DSI display overlay (critical for touchscreen)
-add_if_missing "dtoverlay=vc4-kms-dsi-7inch"
+# Apply config.txt settings
+enable_setting "dtparam=i2c_arm" "on"
+enable_setting "dtparam=i2c_arm_baudrate" "200000"
+enable_overlay "dtoverlay=vc4-kms-dsi-7inch"
+enable_setting "gpu_mem" "128"
 
-# GPU memory
-add_if_missing "gpu_mem=128"
+# ============================================================================
+# Enable I2C interface
+# ============================================================================
 
-# Enable I2C interface in raspi-config
 echo ""
-echo "Enabling I2C interface in raspi-config..."
+echo "→ Enabling I2C interface in raspi-config..."
 sudo raspi-config nonint do_i2c 0
 
-# Add user to I2C and GPIO groups
+# ============================================================================
+# Set permissions
+# ============================================================================
+
 echo ""
-echo "Setting permissions..."
+echo "→ Setting permissions..."
 sudo usermod -a -G i2c,gpio $USER
 
-# Ensure mbb_start.sh is executable
+# ============================================================================
+# Make startup script executable
+# ============================================================================
+
 echo ""
-echo "Setting executable permissions on startup script..."
+echo "→ Setting executable permission on mbb_start.sh..."
 chmod +x "$BASE_DIR/src/mbb_start.sh"
 
+# ============================================================================
 # Create desktop shortcut
+# ============================================================================
+
 if [ -d "/home/pi/Desktop" ]; then
-    echo "Creating desktop shortcut..."
+    echo "→ Creating desktop shortcut..."
     cat > /home/pi/Desktop/mirrorballbot.desktop << EOF
 [Desktop Entry]
 Name=MirrorBallBot
@@ -99,23 +140,52 @@ Categories=Utility;Robot;
 EOF
     chmod +x /home/pi/Desktop/mirrorballbot.desktop
     chown pi:pi /home/pi/Desktop/mirrorballbot.desktop
-    echo "Desktop shortcut created"
+    echo "  Desktop shortcut created"
 fi
 
-# Add commented crontab entry for auto-start (if not already present)
+# Disable the "execute file" confirmation dialog in PCManFM
+mkdir -p /home/pi/.config/pcmanfm/LXDE-pi
+if ! grep -q "confirm_execute_file=0" /home/pi/.config/pcmanfm/LXDE-pi/pcmanfm.conf 2>/dev/null; then
+    echo -e "\n[gui]\nconfirm_execute_file=0" >> /home/pi/.config/pcmanfm/LXDE-pi/pcmanfm.conf
+    echo "  Desktop shortcut confirmation disabled"
+fi
+
+
 echo ""
-echo "Adding commented crontab entry for auto-start..."
+# ============================================================================
+# Configure crontab (same uncomment-first approach)
+# ============================================================================
 
-CRON_LINE="# @reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
+echo ""
+echo "→ Configuring crontab for auto-start..."
 
-# Check if line already exists in crontab
-if sudo crontab -l 2>/dev/null | grep -qF "$CRON_LINE"; then
-    echo "Crontab entry already exists"
+CRON_LINE="@reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
+CRON_LINE_COMMENTED="# $CRON_LINE"
+
+# Get current crontab
+CURRENT_CRON=$(sudo crontab -l 2>/dev/null || echo "")
+
+if echo "$CURRENT_CRON" | grep -q "^$CRON_LINE$"; then
+    # Already enabled (no # at start)
+    echo "  Auto-start already enabled"
+elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE_COMMENTED"; then
+    # Exists but commented - uncomment it
+    echo "  Uncommenting existing crontab entry"
+    echo "$CURRENT_CRON" | sed "s|$CRON_LINE_COMMENTED|$CRON_LINE|" | sudo crontab -
+elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE"; then
+    # Entry exists but might have different format - update it
+    echo "  Updating existing crontab entry"
+    echo "$CURRENT_CRON" | grep -vF "$CRON_LINE" | sudo crontab -
+    (sudo crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | sudo crontab -
 else
-    # Add the commented line to crontab
-    (sudo crontab -l 2>/dev/null; echo "$CRON_LINE") | sudo crontab -
-    echo "Added commented crontab entry"
+    # Doesn't exist - add commented entry
+    echo "  Adding commented crontab entry"
+    (echo "$CURRENT_CRON"; echo "$CRON_LINE_COMMENTED") | sudo crontab -
 fi
+
+# ============================================================================
+# Completion message
+# ============================================================================
 
 echo ""
 echo "=========================================="
@@ -124,21 +194,21 @@ echo ""
 echo "Repository root: $BASE_DIR"
 echo ""
 echo "What was configured:"
-echo "  - Python libraries (7 packages via apt)"
-echo "  - I2C enabled (dtparam + raspi-config)"
-echo "  - DSI display overlay (vc4-kms-dsi-7inch)"
+echo "  - Python libraries (8 packages via apt)"
+echo "  - I2C enabled (uncommented in config.txt + raspi-config)"
+echo "  - DSI display overlay (uncommented in config.txt)"
 echo "  - GPU memory set to 128MB"
 echo "  - User added to i2c and gpio groups"
 echo "  - Executable permission set on src/mbb_start.sh"
 if [ -f "/home/pi/Desktop/mirrorballbot.desktop" ]; then
     echo "  - Desktop shortcut created"
 fi
-echo "  - Commented crontab entry added"
+echo "  - Crontab entry configured (commented by default)"
 echo ""
 echo "To enable auto-start on boot:"
 echo "  sudo crontab -e"
-echo "  Find the line: # @reboot bash -l $BASE_DIR/src/mbb_start.sh..."
-echo "  Remove the '#' at the beginning to uncomment"
+echo "  Remove the '#' at the beginning of the @reboot line"
+echo "  OR run: sudo crontab -l | sed 's/^# @reboot/@reboot/' | sudo crontab -"
 echo ""
 echo "Next steps:"
 echo "  1. REBOOT: sudo reboot"
@@ -146,7 +216,6 @@ echo "  2. After reboot, test I2C: i2cdetect -y 1"
 echo "  3. Test camera: python3 mbb_camera.py"
 echo "  4. Test fans: python3 mbb_fans_test.py"
 echo "  5. Test motors: python3 mbb_motors_test.py"
-echo "  6. Test robot: python3 mbb_robot.py"
-echo "  7. Run robot with its GUI: python3 mbb_gui.py"
+echo "  6. Run robot: python3 mbb_gui.py"
 echo "     or double-click the desktop icon"
 echo "=========================================="
