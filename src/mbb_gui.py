@@ -2,7 +2,7 @@
 # coding: utf-8
 
 """
-Andrea Favero 20260517
+Andrea Favero 20260523
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -11,6 +11,7 @@ More info at:
   https://www.instructables.com/MirrorBallBot-MBB-An-Alternative-Ball-Balancing-Ro/
 
 Code handling the touchscreen GUI
+Tested on Bookworn and Trixie, Desktop version 32bits
 
 
 
@@ -456,9 +457,10 @@ class BallBalancingGUI(tk.Tk):
         self.after(2000, self.auto_start)  # repeat with larger delay ensuring checkbutton flag presence
         
         # fullscreen after startup
+        self.update_idletasks()
         self.after(100, lambda: self.toggle_fullscreen())
         self.bind('<Escape>', self.toggle_fullscreen)
-        self.update_idletasks()
+        
     
         # setup close protocol
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -485,6 +487,7 @@ class BallBalancingGUI(tk.Tk):
         """Set window to fullscreen."""
         self.attributes('-fullscreen', True)
         self.is_fullscreen = True
+#         self.after(200,self.update)
     
     
     
@@ -597,6 +600,8 @@ class BallBalancingGUI(tk.Tk):
         control.grid(row=0, column=1, sticky="nsew", padx=5, pady=2)
         
         control.grid_rowconfigure(1, weight=1)
+        
+        # expandable middle area
         control.grid_columnconfigure(0, weight=1)
         
         # title
@@ -615,18 +620,26 @@ class BallBalancingGUI(tk.Tk):
         nav.grid(row=2, sticky="ew", pady=5)
         
         nav_buttons = [("MAIN", 0), ("PATHS", 1), ("CALIBRATION", 2)]
+        self.nav_buttons = []
+        
         for i, (text, col) in enumerate(nav_buttons):
             nav.grid_columnconfigure(i, weight=1)
-            btn = tk.Button(nav, text=text, bg=self.colors['button'], fg=self.colors['fg'],
-                           font=('Arial', 11, 'bold'), relief=tk.RAISED, bd=1,
-                           command=lambda p=text.lower(): self.show_page(p))
+            btn = tk.Button(nav, text=text,
+                            bg=self.colors['button'],
+                            fg=self.colors['fg'],
+                            relief=tk.RAISED,
+                            bd=1,
+                            command=lambda p=text.lower(): self.show_page(p))
+
             btn.grid(row=0, column=i, sticky="ew", padx=1)
+            self.remove_highlight(btn)
+            self.nav_buttons.append(btn)
         
         # emergency stop
         self.estop_btn = tk.Button(control, text="EMERGENCY STOP", bg=self.colors['error'],
                                    fg='white', font=('Arial', 12, 'bold'), height=1,
                                    command=self.emergency_stop)
-        self.estop_btn.grid(row=3, sticky="ew", pady=2)
+        self.estop_btn.grid(row=3, sticky="ew", pady=5)
         
         # status bar
         status = StaticFrame(control, bg=self.colors['info_bar'], height=25)
@@ -641,7 +654,7 @@ class BallBalancingGUI(tk.Tk):
         
         self.balance_status = tk.Label(status, text="Balance: OFF", bg=self.colors['info_bar'],
                                        fg=self.colors['fg'], font=('Arial', 8))
-        self.balance_status.grid(row=0, column=1, sticky="w")
+        self.balance_status.grid(row=0, column=1, sticky="w", padx=5)
         
         self.ball_status = tk.Label(status, text="Ball: --", bg=self.colors['info_bar'],
                                     fg=self.colors['fg'], font=('Arial', 8))
@@ -845,7 +858,7 @@ class BallBalancingGUI(tk.Tk):
                  fg=self.colors['fg'],
                  font=('Liberation Mono', 11),
                  width=label_width,
-                 ).grid(row=0, sticky="w", padx=3, pady=2)
+                 ).grid(row=0, sticky="w", padx=3, pady=(2,1))
         
         tk.Label(left,
                  textvariable=self.motor_b,
@@ -853,7 +866,7 @@ class BallBalancingGUI(tk.Tk):
                  fg=self.colors['fg'],
                  font=('Liberation Mono', 11),
                  width=label_width,
-                 ).grid(row=1, sticky="w", padx=3, pady=2)
+                 ).grid(row=1, sticky="w", padx=3, pady=(1,1))
         
         tk.Label(left,
                  textvariable=self.motor_c,
@@ -861,26 +874,26 @@ class BallBalancingGUI(tk.Tk):
                  fg=self.colors['fg'],
                  font=('Liberation Mono', 11),
                  width=label_width,
-                 ).grid(row=2, sticky="w", padx=3, pady=2)
+                 ).grid(row=2, sticky="w", padx=3, pady=(1,2))
         
         tk.Frame(left,
                  bg=self.colors['fg'],
                  height=1
-                 ).grid(row=3, sticky="ew", padx=3, pady=3)
+                 ).grid(row=3, sticky="ew", padx=3, pady=1)
         
         tk.Label(left,
                  textvariable=self.pos_label,
                  bg=self.colors['bg'],
                  fg=self.colors['fg'],
                  font=('Liberation Mono', 11),
-                 ).grid(row=4, sticky="w", padx=3, pady=2)
+                 ).grid(row=4, sticky="w", padx=3, pady=(2,0))
         
         tk.Label(left,
                  textvariable=self.fps_label,
                  bg=self.colors['bg'],
                  fg=self.colors['fg'],
                  font=('Liberation Mono', 14),
-                 ).grid(row=5, sticky="w", padx=3, pady=2)
+                 ).grid(row=5, sticky="w", padx=3, pady=(0,2))
         
         # right column - motor controls
         right = tk.LabelFrame(status_container,
@@ -2006,6 +2019,9 @@ class BallBalancingGUI(tk.Tk):
             self._set_fullscreen_geometry()
             self.update_idletasks()
             self.fullscreen_btn.config(text="\u25BC")
+            self.after(100, self._refresh_navigation_btns)
+            self.after(200, self._refresh_status_bar)
+            
         
         # force canvas to recalculate centering by updating its dimensions directly
         if hasattr(self, 'video_canvas') and self.video_canvas.is_alive:
@@ -2033,19 +2049,57 @@ class BallBalancingGUI(tk.Tk):
     
     
     
+    def _refresh_navigation_btns(self):
+        """
+        Force redraw of the navigation buttons when entering fullscreen.
+        Necessary with Trixie, not with Bookworn... 
+        """
+        if hasattr(self, 'nav_buttons'):
+            for btn in self.nav_buttons:
+                btn.configure(bg=btn.cget('bg'))
+                btn.update_idletasks()
+        self.update()
+    
+    
+    
+    def _refresh_status_bar(self):
+        """
+        Force redraw of the status bar labels.
+        Necessary with Trixie to ensure all status appear correctly.
+        """
+        try:
+            # Force status bar labels to update
+            self.system_status.configure(fg=self.system_status.cget('fg'))
+            self.system_status.update_idletasks()
+            
+            self.balance_status.configure(fg=self.balance_status.cget('fg'))
+            self.balance_status.update_idletasks()
+            
+            self.ball_status.configure(fg=self.ball_status.cget('fg'))
+            self.ball_status.update_idletasks()
+            
+            self.update_idletasks()
+            self.update()
+        
+        except Exception as e:
+            pass
+    
+    
+    
     def toggle_auto_balance(self):
         if self.is_closing:
             return
         if hasattr(self, 'auto_balance_var'):
             if self.auto_balance_var.get():
+                self.balance_status.config(text="Balance: ON", fg=self.colors['success'])
                 self.system.controller.reset_pid()
                 self.system.start_auto_balance()
-                self.balance_status.config(text="Balance: ON", fg=self.colors['success'])
                 self.system.controller.reset_pid()
             else:
                 self.system.stop_auto_balance()
-                self.auto_balance_var.set(False)
                 self.balance_status.config(text="Balance: OFF", fg=self.colors['fg'])
+                self.auto_balance_var.set(False)
+                
             self.update()
     
     

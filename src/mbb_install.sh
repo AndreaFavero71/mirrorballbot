@@ -153,9 +153,9 @@ if ! grep -q "confirm_execute_file=0" /home/pi/.config/pcmanfm/LXDE-pi/pcmanfm.c
 fi
 
 
-echo ""
 # ============================================================================
 # Configure crontab (same uncomment-first approach)
+# Use USER crontab (not sudo) for better GUI compatibility
 # ============================================================================
 
 echo ""
@@ -164,8 +164,8 @@ echo "→ Configuring crontab for auto-start..."
 CRON_LINE="@reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
 CRON_LINE_COMMENTED="# $CRON_LINE"
 
-# Get current crontab
-CURRENT_CRON=$(sudo crontab -l 2>/dev/null || echo "")
+# Get current USER crontab (not sudo)
+CURRENT_CRON=$(crontab -l 2>/dev/null || echo "")
 
 if echo "$CURRENT_CRON" | grep -q "^$CRON_LINE$"; then
     # Already enabled (no # at start)
@@ -173,16 +173,16 @@ if echo "$CURRENT_CRON" | grep -q "^$CRON_LINE$"; then
 elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE_COMMENTED"; then
     # Exists but commented - uncomment it
     echo "  Uncommenting existing crontab entry"
-    echo "$CURRENT_CRON" | sed "s|$CRON_LINE_COMMENTED|$CRON_LINE|" | sudo crontab -
+    echo "$CURRENT_CRON" | sed "s|$CRON_LINE_COMMENTED|$CRON_LINE|" | crontab -
 elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE"; then
     # Entry exists but might have different format - update it
     echo "  Updating existing crontab entry"
-    echo "$CURRENT_CRON" | grep -vF "$CRON_LINE" | sudo crontab -
-    (sudo crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | sudo crontab -
+    echo "$CURRENT_CRON" | grep -vF "$CRON_LINE" | crontab -
+    (crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | crontab -
 else
     # Doesn't exist - add commented entry
     echo "  Adding commented crontab entry"
-    (echo "$CURRENT_CRON"; echo "$CRON_LINE_COMMENTED") | sudo crontab -
+    (echo "$CURRENT_CRON"; echo "$CRON_LINE_COMMENTED") | crontab -
 fi
 
 # ============================================================================
