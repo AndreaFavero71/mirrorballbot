@@ -3,13 +3,12 @@
 # MirrorBallBot - System Configuration Script
 #
 # First update the system
-#     sudo apt-get update
-#     apt-get upgrade -y
+#     sudo apt update
+#     sudo apt upgrade -y
 # Then clone the repo
-# Finally run this file (bash mbb_install.sh) from from the /mirrorballbot/src folder
+# Finally run this file (bash mbb_install.sh) from the /mirrorballbot/src folder
 
 set -e
-
 
 echo ""
 echo "=========================================="
@@ -23,7 +22,7 @@ while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 # Check if we're in the correct directory
 if [ ! -f "mbb_gui.py" ] || [ ! -f "mbb_install.sh" ]; then
     echo "Error: Please run this script from the src directory"
-    echo "  cd /home/pi/mirrorballbot/src"
+    echo "  cd $HOME/mirrorballbot/src"
     echo "  bash mbb_install.sh"
     exit 1
 fi
@@ -31,6 +30,13 @@ fi
 # Get the base directory
 BASE_DIR="$(cd .. && pwd)"
 
+# Get the username (works for pi, bot, robot, etc.)
+USERNAME="$USER"
+HOME_DIR="$HOME"
+
+echo "User: $USERNAME"
+echo "Home directory: $HOME_DIR"
+echo "Repository root: $BASE_DIR"
 
 # ============================================================================
 # Install Python packages
@@ -123,7 +129,7 @@ sudo raspi-config nonint do_i2c 0
 
 echo ""
 echo "→ Setting permissions..."
-sudo usermod -a -G i2c,gpio $USER
+sudo usermod -a -G i2c,gpio "$USERNAME"
 
 
 # ============================================================================
@@ -139,28 +145,38 @@ chmod +x "$BASE_DIR/src/mbb_start.sh"
 # Create desktop shortcut
 # ============================================================================
 
-if [ -d "/home/pi/Desktop" ]; then
+if [ -d "$HOME_DIR/Desktop" ]; then
+    echo ""
     echo "→ Creating desktop shortcut..."
-    cat > /home/pi/Desktop/mirrorballbot.desktop << EOF
+    cat > "$HOME_DIR/Desktop/mirrorballbot.desktop" << EOF
 [Desktop Entry]
 Name=MirrorBallBot
 Comment=Launch the Ball Balancing Robot
-Exec=$BASE_DIR/src/mbb_start.sh
+Exec=lxterminal -e '$BASE_DIR/src/mbb_start.sh'
 Icon=$BASE_DIR/src/mbb_icon.ico
 Terminal=false
 Type=Application
 Categories=Utility;Robot;
 EOF
-    chmod +x /home/pi/Desktop/mirrorballbot.desktop
-    chown pi:pi /home/pi/Desktop/mirrorballbot.desktop
-    echo "  Desktop shortcut created"
-fi
+    chmod +x "$HOME_DIR/Desktop/mirrorballbot.desktop"
+    
+    # Disable confirmation dialog (PCManFM config)
+    mkdir -p "$HOME_DIR/.config/pcmanfm/LXDE-pi"
+    cat > "$HOME_DIR/.config/pcmanfm/LXDE-pi/pcmanfm.conf" << 'EOF'
+[config]
+bm_open_method=0
 
-# Disable the "execute file" confirmation dialog in PCManFM
-mkdir -p /home/pi/.config/pcmanfm/LXDE-pi
-if ! grep -q "confirm_execute_file=0" /home/pi/.config/pcmanfm/LXDE-pi/pcmanfm.conf 2>/dev/null; then
-    echo -e "\n[gui]\nconfirm_execute_file=0" >> /home/pi/.config/pcmanfm/LXDE-pi/pcmanfm.conf
-    echo "  Desktop shortcut confirmation disabled"
+[volume]
+show_on_desktop=1
+
+[gui]
+confirm_del=1
+confirm_trash=1
+confirm_execute_file=0
+EOF
+    
+    echo "  Desktop shortcut created"
+    echo "  Confirmation dialog disabled"
 fi
 
 
@@ -194,6 +210,7 @@ echo ""
 echo "=========================================="
 echo "Configuration complete!"
 echo ""
+echo "User: $USERNAME"
 echo "Repository root: $BASE_DIR"
 echo ""
 echo "What was configured:"
@@ -201,24 +218,25 @@ echo "  - Python libraries (8 packages via apt)"
 echo "  - I2C enabled (uncommented in config.txt + raspi-config)"
 echo "  - DSI display overlay (uncommented in config.txt)"
 echo "  - GPU memory set to 128MB"
-echo "  - User added to i2c and gpio groups"
+echo "  - User '$USERNAME' added to i2c and gpio groups"
 echo "  - Executable permission set on src/mbb_start.sh"
-if [ -f "/home/pi/Desktop/mirrorballbot.desktop" ]; then
+if [ -f "$HOME_DIR/Desktop/mirrorballbot.desktop" ]; then
     echo "  - Desktop shortcut created"
 fi
 echo "  - Crontab entry configured (commented by default)"
 echo ""
 echo "To enable auto-start on boot:"
-echo "  sudo crontab -e"
+echo "  crontab -e"
 echo "  Remove the '#' at the beginning of the @reboot line"
-echo "  OR run: sudo crontab -l | sed 's/^# @reboot/@reboot/' | sudo crontab -"
 echo ""
 echo "Next steps:"
 echo "  1. REBOOT: sudo reboot"
 echo "  2. After reboot, test I2C: i2cdetect -y 1"
-echo "  3. Test camera: python3 mbb_camera.py"
-echo "  4. Test fans: python3 mbb_fans_test.py"
-echo "  5. Test motors: python3 mbb_motors_test.py"
+echo "  3. Test fans: python3 mbb_fans_test.py"
+echo "  4. Test motors: python3 mbb_motors_test.py"
+echo ""
+echo "For other tests connect via a VNC Viever"
+echo "  5. Test camera: python3 mbb_camera.py"
 echo "  6. Run robot: python3 mbb_gui.py"
 echo "     or double-click the desktop icon"
 echo "=========================================="
