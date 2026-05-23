@@ -2019,7 +2019,7 @@ class BallBalancingGUI(tk.Tk):
             self._set_fullscreen_geometry()
             self.update_idletasks()
             self.fullscreen_btn.config(text="\u25BC")
-            self.after(100, self._refresh_navigation_btns)
+            self.after(200, self._refresh_navigation_btns)
             self.after(200, self._refresh_status_bar)
             
         

@@ -1,10 +1,15 @@
 #!/bin/bash
 
 # MirrorBallBot - System Configuration Script
-# First update the system (sudo apt-get update apt-get upgrade)
-# Run from src directory after cloning
+#
+# First update the system
+#     sudo apt-get update
+#     apt-get upgrade -y
+# Then clone the repo
+# Finally run this file (bash mbb_install.sh) from from the /mirrorballbot/src folder
 
 set -e
+
 
 echo ""
 echo "=========================================="
@@ -26,6 +31,7 @@ fi
 # Get the base directory
 BASE_DIR="$(cd .. && pwd)"
 
+
 # ============================================================================
 # Install Python packages
 # ============================================================================
@@ -41,6 +47,7 @@ sudo apt install -y \
     python3-pil \
     python3-pil.imagetk \
     python3-tk
+
 
 # ============================================================================
 # Configure config.txt (smart uncomment-first approach)
@@ -100,6 +107,7 @@ enable_setting "dtparam=i2c_arm_baudrate" "200000"
 enable_overlay "dtoverlay=vc4-kms-dsi-7inch"
 enable_setting "gpu_mem" "128"
 
+
 # ============================================================================
 # Enable I2C interface
 # ============================================================================
@@ -107,6 +115,7 @@ enable_setting "gpu_mem" "128"
 echo ""
 echo "→ Enabling I2C interface in raspi-config..."
 sudo raspi-config nonint do_i2c 0
+
 
 # ============================================================================
 # Set permissions
@@ -116,6 +125,7 @@ echo ""
 echo "→ Setting permissions..."
 sudo usermod -a -G i2c,gpio $USER
 
+
 # ============================================================================
 # Make startup script executable
 # ============================================================================
@@ -123,6 +133,7 @@ sudo usermod -a -G i2c,gpio $USER
 echo ""
 echo "→ Setting executable permission on mbb_start.sh..."
 chmod +x "$BASE_DIR/src/mbb_start.sh"
+
 
 # ============================================================================
 # Create desktop shortcut
@@ -154,8 +165,7 @@ fi
 
 
 # ============================================================================
-# Configure crontab (same uncomment-first approach)
-# Use USER crontab (not sudo) for better GUI compatibility
+# Configure crontab (append only, preserve existing content)
 # ============================================================================
 
 echo ""
@@ -164,26 +174,17 @@ echo "→ Configuring crontab for auto-start..."
 CRON_LINE="@reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
 CRON_LINE_COMMENTED="# $CRON_LINE"
 
-# Get current USER crontab (not sudo)
-CURRENT_CRON=$(crontab -l 2>/dev/null || echo "")
-
-if echo "$CURRENT_CRON" | grep -q "^$CRON_LINE$"; then
-    # Already enabled (no # at start)
-    echo "  Auto-start already enabled"
-elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE_COMMENTED"; then
-    # Exists but commented - uncomment it
-    echo "  Uncommenting existing crontab entry"
-    echo "$CURRENT_CRON" | sed "s|$CRON_LINE_COMMENTED|$CRON_LINE|" | crontab -
-elif echo "$CURRENT_CRON" | grep -qF "$CRON_LINE"; then
-    # Entry exists but might have different format - update it
-    echo "  Updating existing crontab entry"
-    echo "$CURRENT_CRON" | grep -vF "$CRON_LINE" | crontab -
-    (crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | crontab -
+# Check if entry already exists in user's crontab
+if crontab -l 2>/dev/null | grep -qF "$CRON_LINE_COMMENTED"; then
+    echo "  Crontab entry already exists"
+elif crontab -l 2>/dev/null | grep -qF "$CRON_LINE"; then
+    echo "  Crontab entry already enabled"
 else
-    # Doesn't exist - add commented entry
-    echo "  Adding commented crontab entry"
-    (echo "$CURRENT_CRON"; echo "$CRON_LINE_COMMENTED") | crontab -
+    # Append the commented line to existing crontab (preserving all existing content)
+    (crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | crontab -
+    echo "  Added commented crontab entry"
 fi
+
 
 # ============================================================================
 # Completion message
