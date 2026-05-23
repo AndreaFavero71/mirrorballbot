@@ -1,10 +1,12 @@
 #!/bin/bash
+
 # MirrorBallBot - System Configuration Script
+# First update the system (sudo apt-get update apt-get upgrade)
 # Run from src directory after cloning
-# Smart uncomment-first approach for config.txt AND crontab
 
 set -e
 
+echo ""
 echo "=========================================="
 echo "MirrorBallBot System Configuration"
 echo "=========================================="
