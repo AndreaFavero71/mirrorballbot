@@ -2750,24 +2750,34 @@ class CirclePathPage(PathConfigPage):
         dir_frame.grid(row=row, column=0, sticky="ew", pady=5)
         dir_frame.grid_columnconfigure(0, weight=1)
         dir_frame.grid_columnconfigure(1, weight=1)
-        
+
         self.direction = tk.StringVar(value="cw")
-        
+
         # left-aligned radiobutton (clockwise)
         cw_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
         cw_frame.grid(row=0, column=0, sticky="w")
-        tk.Radiobutton(cw_frame, text="  ↻   ", variable=self.direction,
-                      value="cw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
-                      selectcolor=self.gui.colors['accent'],
-                      font=('Arial', 30)).pack(side=tk.LEFT)
-        
+        cw_radio = tk.Radiobutton(cw_frame, text="  ↻   ", variable=self.direction,
+                          value="cw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
+                          selectcolor=self.gui.colors['accent'],
+                          font=('Arial', 30),
+                          activebackground=self.gui.colors['bg'],
+                          activeforeground=self.gui.colors['fg'],
+                          highlightthickness=0)
+        cw_radio.pack(side=tk.LEFT)
+        self.gui.remove_highlight(cw_radio)
+
         # right-aligned radiobutton (counter-clockwise)
         ccw_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
         ccw_frame.grid(row=0, column=1, sticky="e")
-        tk.Radiobutton(ccw_frame, text="  ↺   ", variable=self.direction,
-                      value="ccw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
-                      selectcolor=self.gui.colors['accent'],
-                      font=('Arial', 30)).pack(side=tk.LEFT)
+        ccw_radio = tk.Radiobutton(ccw_frame, text="  ↺   ", variable=self.direction,
+                          value="ccw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
+                          selectcolor=self.gui.colors['accent'],
+                          font=('Arial', 30),
+                          activebackground=self.gui.colors['bg'],
+                          activeforeground=self.gui.colors['fg'],
+                          highlightthickness=0)
+        ccw_radio.pack(side=tk.LEFT)
+        self.gui.remove_highlight(ccw_radio)
         row += 1
         
         # add repeats and start button
@@ -2857,21 +2867,34 @@ class TrianglePathPage(PathConfigPage):
         
         self.orientation = tk.StringVar(value="point_up")
         
-        # left-aligned radiobutton (point up)
-        up_frame = tk.Frame(orient_frame, bg=self.gui.colors['bg'])
-        up_frame.grid(row=0, column=0, sticky="w")
-        tk.Radiobutton(up_frame, text="  △   ", variable=self.orientation,
-                      value="point_up", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
-                      selectcolor=self.gui.colors['accent'],
-                      font=('Arial', 30)).pack(side=tk.LEFT)
-        
-        # right-aligned radiobutton (point down)
+        # left-aligned radiobutton (point down - now on left)
         down_frame = tk.Frame(orient_frame, bg=self.gui.colors['bg'])
-        down_frame.grid(row=0, column=1, sticky="e")
-        tk.Radiobutton(down_frame, text="  ▽   ", variable=self.orientation,
-                      value="point_down", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
-                      selectcolor=self.gui.colors['accent'],
-                      font=('Arial', 30)).pack(side=tk.LEFT)
+        down_frame.grid(row=0, column=0, sticky="w")
+        down_radio = tk.Radiobutton(down_frame, text="  ▽   ", variable=self.orientation,
+                          value="point_down", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
+                          selectcolor=self.gui.colors['accent'],
+                          font=('Arial', 30),
+                          activebackground=self.gui.colors['bg'],
+                          activeforeground=self.gui.colors['fg'],
+                          highlightthickness=0)
+        down_radio.pack(side=tk.LEFT)
+        self.gui.remove_highlight(down_radio)
+
+        # right-aligned radiobutton (point up - now on right)
+        up_frame = tk.Frame(orient_frame, bg=self.gui.colors['bg'])
+        up_frame.grid(row=0, column=1, sticky="e")
+        up_radio = tk.Radiobutton(up_frame, text="  △   ", variable=self.orientation,
+                          value="point_up", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
+                          selectcolor=self.gui.colors['accent'],
+                          font=('Arial', 30),
+                          activebackground=self.gui.colors['bg'],
+                          activeforeground=self.gui.colors['fg'],
+                          highlightthickness=0)
+        up_radio.pack(side=tk.LEFT)
+        self.gui.remove_highlight(up_radio) 
+
+        # Set default to point_down (left side)
+        self.orientation.set("point_down")
         row += 1
         
         # add repeats and start button
