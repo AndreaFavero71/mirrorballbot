@@ -199,6 +199,9 @@ fi
 echo ""
 echo "→ Configuring crontab for auto-start..."
 
+# Force crontab initialization (creates the file if it doesn't exist)
+crontab -l &>/dev/null || (echo "# MirrorBallBot crontab" | crontab -)
+
 CRON_LINE="# @reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
 
 # Add the line only if it doesn't already exist
@@ -238,13 +241,18 @@ echo "  crontab -e"
 echo "  Remove the '#' at the beginning of the @reboot line"
 echo ""
 echo "Next steps:"
-echo "  1. REBOOT: sudo reboot"
-echo "  2. After reboot, test I2C: i2cdetect -y 1"
-echo "  3. Test fans: python3 mbb_fans_test.py"
-echo "  4. Test motors: python3 mbb_motors_test.py"
+echo "  1. Set your preferred VNC (see instructions)"
+echo "  2. REBOOT: sudo reboot"
+echo "  3. Activate and check your preferred VNC (see instructions)"
+echo "  4. Enter the bot folder: cd mirrorballbot/src folder"
+echo "  5. Test I2C: i2cdetect -y 1"
+echo "  6. Test fans: python3 mbb_fans_test.py"
+echo "  7. Test motors: python3 mbb_motors_test.py"
 echo ""
 echo "For other tests connect via a VNC Viewer"
-echo "  5. Test camera: python3 mbb_camera.py"
-echo "  6. Run robot: python3 mbb_gui.py"
+echo "  8. Test camera: python3 mbb_camera.py"
+echo "  9. Run robot: python3 mbb_gui.py"
 echo "     or double-click the desktop icon"
+echo ""
+echo "  ENJOY YOUR NEW ROBOT !"
 echo "=========================================="
