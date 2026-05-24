@@ -193,24 +193,20 @@ fi
 
 
 # ============================================================================
-# Configure crontab (append only, preserve existing content)
+# Configure crontab for auto-start
 # ============================================================================
 
 echo ""
 echo "→ Configuring crontab for auto-start..."
 
-CRON_LINE="@reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
-CRON_LINE_COMMENTED="# $CRON_LINE"
+CRON_LINE="# @reboot bash -l $BASE_DIR/src/mbb_start.sh > $BASE_DIR/src/mbb_log.log 2>&1"
 
-# Check if entry already exists in user's crontab
-if crontab -l 2>/dev/null | grep -qF "$CRON_LINE_COMMENTED"; then
-    echo "  Crontab entry already exists"
-elif crontab -l 2>/dev/null | grep -qF "$CRON_LINE"; then
-    echo "  Crontab entry already enabled"
+# Add the line only if it doesn't already exist
+if ! crontab -l 2>/dev/null | grep -qF "$CRON_LINE"; then
+    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+    echo "  Added crontab entry"
 else
-    # Append the commented line to existing crontab (preserving all existing content)
-    (crontab -l 2>/dev/null; echo "$CRON_LINE_COMMENTED") | crontab -
-    echo "  Added commented crontab entry"
+    echo "  Crontab entry already exists"
 fi
 
 
