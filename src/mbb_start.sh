@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-#######   Andrea Favero,  23 May 2026  ##################################
+#######   Andrea Favero,  24 May 2026  ##################################
 #
-#  This bash script set the display and starts the MirrorBallBot
+#  This bash script sets the display and starts the MirrorBallBot
 #
 #########################################################################
 
 #!/bin/bash
-LOG="/home/pi/mirrorballbot/src/mbb_log.log"
+LOG="$HOME/mirrorballbot/src/mbb_log.log"
 
 echo "$(date): Starting MirrorBallBot..." >> $LOG
 
@@ -20,9 +20,9 @@ for i in {1..30}; do
 done
 
 export DISPLAY=:0
-export XAUTHORITY=/home/pi/.Xauthority
+export XAUTHORITY="$HOME/.Xauthority"
 
 sleep 5
 
-cd /home/pi/mirrorballbot/src
+cd "$HOME/mirrorballbot/src"
 python3 mbb_gui.py >> $LOG 2>&1

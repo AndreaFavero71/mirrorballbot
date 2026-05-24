@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# MirrorBallBot - System Configuration Script
+#####################   Andrea Favero,  24 May 2026  ###################################
 #
-# First update the system
+#  MirrorBallBot - System Configuration Script
+#
+#  First update the system
 #     sudo apt update
 #     sudo apt upgrade -y
-# Then clone the repo
-# Finally run this file (bash mbb_install.sh) from the /mirrorballbot/src folder
+#
+#  Then clone the repo  (git clone https://github.com/AndreaFavero71/mirrorballbot.git)
+#
+#  Finally run this file (bash mbb_install.sh) from the $HOME/mirrorballbot/src folder
+#
+########################################################################################
+
 
 set -e
 
@@ -108,10 +115,12 @@ enable_overlay() {
 }
 
 # Apply config.txt settings
+enable_overlay "dtoverlay=vc4-kms-dsi-7inch"
+enable_overlay "dtoverlay=gpio-shutdown,gpio_pin=26,gpio_pull=up,active_low=1,debounce=200"
 enable_setting "dtparam=i2c_arm" "on"
 enable_setting "dtparam=i2c_arm_baudrate" "200000"
-enable_overlay "dtoverlay=vc4-kms-dsi-7inch"
 enable_setting "gpu_mem" "128"
+
 
 
 # ============================================================================
@@ -159,6 +168,9 @@ Type=Application
 Categories=Utility;Robot;
 EOF
     chmod +x "$HOME_DIR/Desktop/mirrorballbot.desktop"
+    
+    # Mark desktop file as trusted (bypasses confirmation on Bookworm, harmless on Trixie)
+    gio set "$HOME_DIR/Desktop/mirrorballbot.desktop" metadata::trusted true 2>/dev/null || true
     
     # Disable confirmation dialog (PCManFM config)
     mkdir -p "$HOME_DIR/.config/pcmanfm/LXDE-pi"
@@ -235,7 +247,7 @@ echo "  2. After reboot, test I2C: i2cdetect -y 1"
 echo "  3. Test fans: python3 mbb_fans_test.py"
 echo "  4. Test motors: python3 mbb_motors_test.py"
 echo ""
-echo "For other tests connect via a VNC Viever"
+echo "For other tests connect via a VNC Viewer"
 echo "  5. Test camera: python3 mbb_camera.py"
 echo "  6. Run robot: python3 mbb_gui.py"
 echo "     or double-click the desktop icon"
