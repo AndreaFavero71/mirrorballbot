@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260517
+Andrea Favero 20260524
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -164,6 +164,10 @@ def main():
     
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
+    
+    finally:
+        self.fans_off
+        
 
     
 
