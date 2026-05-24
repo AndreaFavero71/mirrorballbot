@@ -2,7 +2,7 @@
 # coding: utf-8
 
 """
-Andrea Favero 20260523
+Andrea Favero 20260524
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -1304,13 +1304,7 @@ class BallBalancingGUI(tk.Tk):
         
         text_widget.insert(tk.END, info_text)
         text_widget.config(state=tk.DISABLED)  # read-only
-        
-#         # close button
-#         close_btn = tk.Button(main_frame, text="CLOSE", bg=self.colors['button'],
-#                              fg=self.colors['fg'], font=('Arial', 12, 'bold'),
-#                              command=info_window.destroy)
-#         close_btn.pack(pady=(10, 0))
-        self.remove_highlight(close_btn)
+    
     
     
     
@@ -1616,9 +1610,9 @@ class BallBalancingGUI(tk.Tk):
         self.pid_page = StaticFrame(self.page_container, bg=self.colors['bg'])
         self.pid_page.grid(row=0, column=0, sticky="nsew")
         self.pid_page.grid_columnconfigure(0, weight=1)
-        self.pid_page.grid_rowconfigure(0, weight=0)  # PID sliders - fixed
-        self.pid_page.grid_rowconfigure(1, weight=0)  # integral params - fixed
-        self.pid_page.grid_rowconfigure(2, weight=1)  # spacer
+        self.pid_page.grid_rowconfigure(0, weight=0)
+        self.pid_page.grid_rowconfigure(1, weight=0)
+        self.pid_page.grid_rowconfigure(2, weight=1)
         
         # ==================== PID SLIDERS SECTION ====================
         pid_frame = tk.LabelFrame(self.pid_page,
@@ -1633,36 +1627,51 @@ class BallBalancingGUI(tk.Tk):
         tk.Label(pid_frame, text="Kp:", bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 12)).grid(row=0, column=0, sticky="w", padx=10, pady=5)
         self.kp = tk.DoubleVar(value=self.system.controller.k_p)
+        
+        def on_kp_change(*args):
+            self.system.controller.k_p = self.kp.get()
+            self.system.save_pid_settings()  # ADD THIS LINE
+        
+        self.kp.trace_add('write', on_kp_change)  # ADD THIS LINE
+        
         tk.Scale(pid_frame, from_=0.0, to=3.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.kp,
                  bg=self.colors['bg'], fg=self.colors['fg'],
-                 length=200,
-                 command=lambda v: setattr(self.system.controller, 'k_p', self.kp.get())
-                 ).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+                 length=200).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         
         # Ki
         tk.Label(pid_frame, text="Ki:", bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 12)).grid(row=1, column=0, sticky="w", padx=10, pady=5)
         self.ki = tk.DoubleVar(value=self.system.controller.k_i)
+        
+        def on_ki_change(*args):
+            self.system.controller.k_i = self.ki.get()
+            self.system.save_pid_settings()  # ADD THIS LINE
+        
+        self.ki.trace_add('write', on_ki_change)  # ADD THIS LINE
+        
         tk.Scale(pid_frame, from_=0.0, to=2.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.ki,
                  bg=self.colors['bg'], fg=self.colors['fg'],
-                 length=200,
-                 command=lambda v: setattr(self.system.controller, 'k_i', self.ki.get())
-                 ).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+                 length=200).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
         
         # Kd
         tk.Label(pid_frame, text="Kd:", bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 12)).grid(row=2, column=0, sticky="w", padx=10, pady=5)
         self.kd = tk.DoubleVar(value=self.system.controller.k_d)
+        
+        def on_kd_change(*args):
+            self.system.controller.k_d = self.kd.get()
+            self.system.save_pid_settings()  # ADD THIS LINE
+        
+        self.kd.trace_add('write', on_kd_change)  # ADD THIS LINE
+        
         tk.Scale(pid_frame, from_=0.0, to=2.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.kd,
                  bg=self.colors['bg'], fg=self.colors['fg'],
-                 length=200,
-                 command=lambda v: setattr(self.system.controller, 'k_d', self.kd.get())
-                 ).grid(row=2, column=1, sticky="ew", padx=5, pady=(5,2))
+                 length=200).grid(row=2, column=1, sticky="ew", padx=5, pady=(5,2))
         
-        # ==================== INTEGRAL PARAMETERS SECTION (2x2 GRID) ====================
+        # ==================== INTEGRAL PARAMETERS SECTION ====================
         integral_frame = tk.LabelFrame(self.pid_page,
                                        text="Integral Control ( when Ki > 0 )",
                                        bg=self.colors['bg'],
@@ -1674,85 +1683,83 @@ class BallBalancingGUI(tk.Tk):
         for i in range(2):
             integral_frame.grid_columnconfigure(i, weight=1)
         
-        # parameter 1: Integral Zone (ActiveZone) - top-left
+        # parameter 1: Integral Zone
         zone_frame = tk.Frame(integral_frame, bg=self.colors['bg'])
         zone_frame.grid(row=0, column=0, padx=5, pady=2, sticky="nsew")
-
+        
         tk.Label(zone_frame, text="ActiveZone (mm)",
                  bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 11, 'bold')).pack()
-
+        
         self.integral_zone = tk.IntVar(value=self.system.controller.INTEGRAL_ZONE_TENTHS // 10)
         zone_spinbox = tk.Spinbox(zone_frame, from_=10, to=100,
                                   textvariable=self.integral_zone,
                                   width=6, font=('Arial', 28), justify='center')
         zone_spinbox.pack(pady=2)
         
-        # parameter 2: Deadzone Distance - top-right
+        # parameter 2: Deadzone Distance
         dz_frame = tk.Frame(integral_frame, bg=self.colors['bg'])
         dz_frame.grid(row=0, column=1, padx=5, pady=2, sticky="nsew")
-
+        
         tk.Label(dz_frame, text="DeadZone (mm)",
                  bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 11, 'bold')).pack()
-
+        
         self.deadzone = tk.IntVar(value=self.system.controller.DEADZONE_TENTHS // 10)
         dz_spinbox = tk.Spinbox(dz_frame, from_=0, to=30,
                                 textvariable=self.deadzone,
                                 width=6, font=('Arial', 28), justify='center')
         dz_spinbox.pack(pady=2)
         
-        # parameter 3: Max Integral (Windup Limit) - bottom-left
+        # parameter 3: Max Integral
         windup_frame = tk.Frame(integral_frame, bg=self.colors['bg'])
         windup_frame.grid(row=1, column=0, padx=5, pady=2, sticky="nsew")
-
+        
         tk.Label(windup_frame, text="Max Integral (#)",
                  bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 11, 'bold')).pack()
-
+        
         self.max_integral = tk.IntVar(value=self.system.controller.MAX_INTEGRAL)
         windup_spinbox = tk.Spinbox(windup_frame, from_=500, to=10000, increment=100,
                                     textvariable=self.max_integral,
                                     width=6, font=('Arial', 28), justify='center')
         windup_spinbox.pack(pady=2)
-
-        # parameter 4: Deadzone Counter - bottom-right
+        
+        # parameter 4: Deadzone Counter
         counter_frame = tk.Frame(integral_frame, bg=self.colors['bg'])
         counter_frame.grid(row=1, column=1, padx=5, pady=2, sticky="nsew")
-
+        
         tk.Label(counter_frame, text="DZ Counter (#)",
                  bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 11, 'bold')).pack()
-
+        
         self.deadzone_counter = tk.IntVar(value=self.system.controller.DEADZONE_COUNTER_THR)
         counter_spinbox = tk.Spinbox(counter_frame, from_=5, to=50,
                                      textvariable=self.deadzone_counter,
                                      width=6, font=('Arial', 28), justify='center')
         counter_spinbox.pack(pady=2)
         
-        
-        
-        # update controller when spinbox changes
+        # Update controller and save when spinbox changes
         def update_integral_zone(*args):
             self.system.controller.INTEGRAL_ZONE_TENTHS = self.integral_zone.get() * 10
-        self.integral_zone.trace_add('write', update_integral_zone)
-        
-        
+            # No save needed for integral zone unless you want to persist it
+            # Add to settings_mgr if needed
         
         def update_deadzone(*args):
             self.system.controller.DEADZONE_TENTHS = self.deadzone.get() * 10
-        self.deadzone.trace_add('write', update_deadzone)
-        
-        
+            self.system.controller.save_deadzone()  # ADD THIS LINE
         
         def update_max_integral(*args):
             self.system.controller.MAX_INTEGRAL = self.max_integral.get()
-        self.max_integral.trace_add('write', update_max_integral)
-        
-        
+            # No save needed unless you want to persist
         
         def update_deadzone_counter(*args):
             self.system.controller.DEADZONE_COUNTER_THR = self.deadzone_counter.get()
+            # No save needed unless you want to persist
+        
+        self.integral_zone.trace_add('write', update_integral_zone)
+        self.deadzone.trace_add('write', update_deadzone)
+        self.max_integral.trace_add('write', update_max_integral)
         self.deadzone_counter.trace_add('write', update_deadzone_counter)
         
         spacer = tk.Frame(self.pid_page, bg=self.colors['bg'])
@@ -2546,6 +2553,10 @@ class BallBalancingGUI(tk.Tk):
             return
         
         self.system.camera.ball_mm = self.ball_diam.get()
+        # Save ball diameter to settings
+        if self.system.settings_mgr:
+            self.system.settings_mgr.get().hardware.ball_diameter_mm = self.ball_diam.get()
+            self.system.settings_mgr.save()
     
     
     
