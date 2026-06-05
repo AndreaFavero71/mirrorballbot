@@ -2,27 +2,28 @@
 
 A ball-balancing robot that sees through a mirror.<br>
 MirrorBallBot keeps a ball centred on a circular platform by tilting it with three stepper motors.<br>
-You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.
+You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.<br>
+MirrorBallBot is fully open-source (all files available, also CAD editable files).<br>
 
 <br><br>
 ## Demo video
 [![Watch on YouTube](https://i9.ytimg.com/vi/ORftNl7bZG4/mqdefault.jpg?v=6a1de6af&sqp=CNjpi9EG&rs=AOn4CLBTCKaAk4Y5NsWkHSeswd7hoQ7rKQ)](https://youtu.be/ORftNI7bZG4)
 
 <br><br>
-## key innovation
+## key innovations
 ![title image](/images/mbb_principle.png)<br>
 1. Unlike most designs, it uses a mirror and a side-mounted camera.<br>
-&nbsp;&nbsp;&nbsp;By considering a direct camera placement, having the same camera and robot height, the mirror concept increases the Field of View by ca 58%.<br>
-&nbsp;&nbsp;&nbsp;This allows for a larger platform while keeping the robot compact.<br>
+By considering a direct camera placement, having the same camera and robot height, the mirror concept increases the Field of View by 58%.<br>
+This allows for a larger platform while keeping the robot compact.<br>
 
-2. Finger follower: The ball foloows, in real time, the position of the finger on the touchscreen.
+2. Finger follower: The ball follows, in real time, the finger's position on the touchscreen.
 
 
 <br><br>
 ## Features
 
 - Touchscreen GUI - 7" DSI display with full control interface
-- Camera image - Real time camera images on the screen
+- Camera image - Real time camera's images on the screen
 - Auto-balance - keeps the ball centred
 - Finger-follow mode - move the ball by touching the screen
 - Predefined paths - square, circle, infinity, triangle, line
@@ -36,12 +37,12 @@ You can control the ball with your finger on a touchscreen, record paths, or let
 
 <br><br>
 ## How It Works
-1. Detection (process more than 110 FPS): The camera looks at a mirror placed underneath the transparent platform, detects the ball via HSV thresholding, the ball position is retrieved.<br>
-2. Calculation: The ball position is compared to the target, and via a PID controller the new platform angle is calculated.<br>
-3. Communication: The Raspberry Pi 4B+ sends the information (speed and number of steps) to the three RP2040-Zero, via a custom I2C protocol.<br>
-4. Actuation: The three RP2040-Zero decode the I2C command to speed, direction and number of steps, and load them into the PIO buffer. Finally, the steppers move the platform.<br>
+1. **Detection**: The camera looks at a mirror placed underneath the transparent platform, detects the ball via HSV thresholding, the ball position is retrieved. This flow works at more than 110 FPS.<br>
+2. **Calculation**: The ball position is compared to the target, and via a PID controller the new platform angle is calculated.<br>
+3. **Communication**: The Raspberry Pi 4B+ sends the information (speed and number of steps) to the three RP2040-Zero, via a custom I2C protocol.<br>
+4. **Actuation**: The three RP2040-Zero decode the I2C command to speed, direction and number of steps, and load them into the PIO buffer. Finally, the steppers move the platform. The platform actuation works at 17~25Hz.<br>
 
-Architecture:
+&ensp;**Architecture:**
 - Raspberry Pi 4B+: Vision processing, PID control, GUI, I2C master
 - 3x RP2040-Zero: Motion execution, I2C slave, PIO step generation
 - 3x TMC2209: Silent stepper drivers with StallGuard
@@ -65,6 +66,11 @@ Architecture:
 | 20V 5A power supply | 1 |
 
 Full BOM in the documentation.
+
+<br><br>
+## Documentation
+The complete instruction manual, **a 100+ pages PDF file**, is available in the doc/ folder.<br>
+It covers BOM, 3D printing, PCB assembly, wood base preparation, Raspberry Pi and RP2040 setup, first tests, full assembly (27 steps with photos), GUI operation, PID tuning, I2C protocol details, configuration parameters, troubleshooting, and Q&A.
 
 
 <br><br>
@@ -96,12 +102,6 @@ The GUI will open on the touchscreen. Enable Auto-Balance and place the ball on 
 
 
 <br><br>
-## Documentation
-The complete instruction manual (100+ pages) is available in the doc/ folder.<br>
-It covers BOM, 3D printing, PCB assembly, wood base preparation, Raspberry Pi and RP2040 setup, first tests, full assembly (27 steps with photos), GUI operation, PID tuning, I2C protocol details, configuration parameters, troubleshooting, and Q&A.
-
-
-<br><br>
 ## Tools You'll Need
 - 3D printer (210x210 mm bed minimum)
 - Laser cutter or CNC for acrylic parts (find for a service eventually)
@@ -110,13 +110,20 @@ It covers BOM, 3D printing, PCB assembly, wood base preparation, Raspberry Pi an
 - Screwdrivers, Allen keys (ball-end recommended)
 - Multimeter (for Vref adjustment)
 - Computer with SD card reader
+- DIY and coding skills
 
 
 <br><br>
 ## Credits
 - Low-level I2C driver for RP2040 adapted from danjperron
-- ELECROW for sponsoring the 7" DSI touchscreen
-- PCBWay for sponsoring the MirrorBallBot PCB
+- PCBWay for sponsoring the MirrorBallBot PCB [https://www.pcbway.com/]
+- ELECROW for sponsoring the 7" DSI touchscreen [https://www.elecrow.com/7-inch-800-480-dsi-display-touch-screen-with-bracket-compatible-with-raspberry-pi.html?idd=5]
+
+
+<br><br>
+## Please leave a feedback if you build it
+I hope many of you will decide to build your own MirroBallBot, and that you'll enjoy it as much much as I did.<br />
+If you build one, please feedback !
 
 
 <br><br>
