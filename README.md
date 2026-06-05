@@ -7,11 +7,12 @@ MirrorBallBot is fully open-source (all files available, also CAD editable files
 
 <br><br>
 ## Demo video
-[![Watch on YouTube](https://i9.ytimg.com/vi/ORftNl7bZG4/mqdefault.jpg?v=6a1de6af&sqp=CNjpi9EG&rs=AOn4CLBTCKaAk4Y5NsWkHSeswd7hoQ7rKQ)](https://youtu.be/ORftNI7bZG4)
+[![Watch the Demo](https://i.ytimg.com/vi/ORftNl7bZG4/maxresdefault.jpg)](https://youtu.be/ORftNl7bZG4)
+
 
 <br><br>
 ## key innovations
-![title image](/images/mbb_principle.png)<br>
+<img src=".//images/mbb_principle.png" width="400">
 1. Unlike most designs, it uses a mirror and a side-mounted camera.<br>
 By considering a direct camera placement, having the same camera and robot height, the mirror concept increases the Field of View by 58%.<br>
 This allows for a larger platform while keeping the robot compact.<br>
