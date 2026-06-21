@@ -1,8 +1,8 @@
-\#!/usr/bin/env python
+#!/usr/bin/env python
 # coding: utf-8
 
 """
-Andrea Favero 20260605
+Andrea Favero 20260607
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # gui for mirrorballbot by andrea favero
 # ============================================================================
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 
 import datetime as dt
@@ -71,7 +71,7 @@ from mbb_settings_mgr import SettingsManager
 DISPLAY_WIDTH = 800
 DISPLAY_HEIGHT = 480
 TITLE_BAR_HEIGHT = 30
-PI_TASKBAR_HEIGHT = 30
+PI_TASKBAR_HEIGHT = 36
 WINDOWED_HEIGHT = DISPLAY_HEIGHT - TITLE_BAR_HEIGHT - PI_TASKBAR_HEIGHT  # 480 - 60 = 420
 
 
@@ -517,9 +517,14 @@ class BallBalancingGUI(tk.Tk):
         """Start auto-balance if platform is ready."""
         if not self.is_closing:
             if hasattr(self, 'auto_balance_var'):
-                self.auto_balance_var.set(True)
-                self.toggle_auto_balance()
-                self.update_idletasks()
+                # only enable if platform is at balance position
+                if self.system.controller.at_balance and not self.system.controller.at_home:
+                    self.auto_balance_var.set(True)
+                    self.toggle_auto_balance()
+                    self.update_idletasks()
+                else:
+                    if self.verbose:
+                        print("Auto-balance not started: Platform not at BALANCE position")
     
     
     
@@ -908,27 +913,27 @@ class BallBalancingGUI(tk.Tk):
         right.grid(row=0, column=1, sticky="nsew", padx=2)
         right.grid_columnconfigure(0, weight=1)
         
-        home_btn = tk.Button(right,
-                  text="Home Motors",
-                  bg=self.colors['button'],
-                  fg=self.colors['fg'],
-                  font=('Arial', 12, 'bold'),
-                  height=2,
-                  command=self.home_motors
-                  )
-        home_btn.grid(row=0, sticky="nsew", padx=10, pady=5)
-        self.remove_highlight(home_btn)
+        self.home_btn = tk.Button(right,
+                                  text="Home Motors",
+                                  bg=self.colors['button'],
+                                  fg=self.colors['fg'],
+                                  font=('Arial', 12, 'bold'),
+                                  height=2,
+                                  command=self.home_motors
+                                  )
+        self.home_btn.grid(row=0, sticky="nsew", padx=10, pady=5)
+        self.remove_highlight(self.home_btn)
         
-        balance_btn = tk.Button(right,
-                  text="Balance Plat.",
-                  bg=self.colors['button'],
-                  fg=self.colors['fg'],
-                  font=('Arial', 12, 'bold'),
-                  height=2,
-                  command=self.balance_platform
-                  )
-        balance_btn.grid(row=1, sticky="nsew", padx=10, pady=5)
-        self.remove_highlight(balance_btn)
+        self.balance_btn = tk.Button(right,
+                                     text="Balance Plat.",
+                                     bg=self.colors['button'],
+                                     fg=self.colors['fg'],
+                                     font=('Arial', 12, 'bold'),
+                                     height=2,
+                                     command=self.balance_platform
+                                     )
+        self.balance_btn.grid(row=1, sticky="nsew", padx=10, pady=5)
+        self.remove_highlight(self.balance_btn)
         
         # configure row weights for proper spacing
         self.main_page.grid_rowconfigure(0, weight=0)  # checkbox - fixed
@@ -1588,15 +1593,15 @@ class BallBalancingGUI(tk.Tk):
         self.tilt_slider.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
         
         # level platform button
-        level_btn = tk.Button(tilt,
-                              text="⟳ LEVEL PLATFORM",
-                              bg=self.colors['warning'],
-                              fg='black',
-                              font=('Arial', 12, 'bold'),
-                              command=self.level_platform_with_shifts
-                              )
-        level_btn.grid(row=2, columnspan=2, sticky="ew", padx=10, pady=(10, 5))
-        self.remove_highlight(level_btn)
+        self.level_btn = tk.Button(tilt,
+                                   text="⟳ LEVEL PLATFORM",
+                                   bg=self.colors['button'],
+                                   fg=self.colors['fg'],
+                                   font=('Arial', 12, 'bold'),
+                                   command=self.level_platform_with_shifts
+                                   )
+        self.level_btn.grid(row=2, columnspan=2, sticky="ew", padx=10, pady=(10, 5))
+        self.remove_highlight(self.level_btn)
         
         # spacer to push content up
         spacer = tk.Frame(self.plat_page, bg=self.colors['bg'])
@@ -1694,8 +1699,11 @@ class BallBalancingGUI(tk.Tk):
                  bg=self.colors['bg'], fg=self.colors['fg'],
                  font=('Arial', 11, 'bold')).pack()
         
+        
+        platform_radius_mm = self.system.camera.platform_mm / 2
+        usable_radius_mm = int(max(10, platform_radius_mm))
         self.integral_zone = tk.IntVar(value=self.system.controller.INTEGRAL_ZONE_TENTHS // 10)
-        zone_spinbox = tk.Spinbox(zone_frame, from_=10, to=100,
+        zone_spinbox = tk.Spinbox(zone_frame, from_=10, to=usable_radius_mm,
                                   textvariable=self.integral_zone,
                                   width=6, font=('Arial', 28), justify='center')
         zone_spinbox.pack(pady=2)
@@ -1742,23 +1750,34 @@ class BallBalancingGUI(tk.Tk):
                                      width=6, font=('Arial', 28), justify='center')
         counter_spinbox.pack(pady=2)
         
+        # load saved values to self.system
+        self.integral_zone.set(self.system.controller.INTEGRAL_ZONE_TENTHS // 10)
+        self.deadzone.set(self.system.controller.DEADZONE_TENTHS // 10)
+        self.max_integral.set(self.system.controller.MAX_INTEGRAL)
+        self.deadzone_counter.set(self.system.controller.DEADZONE_COUNTER_THR)
+
         # Update controller and save when spinbox changes
         def update_integral_zone(*args):
             self.system.controller.INTEGRAL_ZONE_TENTHS = self.integral_zone.get() * 10
-            # No save needed for integral zone unless you want to persist it
-            # Add to settings_mgr if needed
+            if self.system.settings_mgr:
+                self.system.settings_mgr.get().controller.integral_zone_tenths = self.system.controller.INTEGRAL_ZONE_TENTHS
+                self.system.settings_mgr.save()
         
         def update_deadzone(*args):
             self.system.controller.DEADZONE_TENTHS = self.deadzone.get() * 10
-            self.system.controller.save_deadzone()  # ADD THIS LINE
-        
+            self.system.controller.save_deadzone()  # This already saves
+
         def update_max_integral(*args):
             self.system.controller.MAX_INTEGRAL = self.max_integral.get()
-            # No save needed unless you want to persist
-        
+            if self.system.settings_mgr:  # Save to settings
+                self.system.settings_mgr.get().controller.max_integral = self.system.controller.MAX_INTEGRAL
+                self.system.settings_mgr.save()
+
         def update_deadzone_counter(*args):
             self.system.controller.DEADZONE_COUNTER_THR = self.deadzone_counter.get()
-            # No save needed unless you want to persist
+            if self.system.settings_mgr:  # Save to settings
+                self.system.settings_mgr.get().controller.deadzone_counter_thr = self.system.controller.DEADZONE_COUNTER_THR
+                self.system.settings_mgr.save()
         
         self.integral_zone.trace_add('write', update_integral_zone)
         self.deadzone.trace_add('write', update_deadzone)
@@ -1932,6 +1951,21 @@ class BallBalancingGUI(tk.Tk):
     
     
     
+    def _protected_action(self, button, action):
+        """Run action with button disabled during execution."""
+        if button.cget('state') == tk.DISABLED:
+            return  # Already running
+        
+        button.config(state=tk.DISABLED)
+        self.update_idletasks()
+        
+        def run():
+            try:
+                action()
+            finally:
+                self.after(0, lambda: button.config(state=tk.NORMAL))
+        
+        threading.Thread(target=run, daemon=True).start()
     # ==================== PATH CONTROL FUNCTIONS ====================
     
     def start_square_path(self, side, repeats):
@@ -1942,9 +1976,10 @@ class BallBalancingGUI(tk.Tk):
     
     
     
-    def start_circle_path(self, radius, repeats, direction):
+    def start_circle_path(self, radius, repeats, direction, speed_factor=1.5):
         def run():
-            self.system.circle_path(radius_mm=radius, repeats=repeats, direction=direction)
+            self.system.circle_path(radius_mm=radius, repeats=repeats, 
+                                    direction=direction, speed_factor=speed_factor)
         self._ensure_auto_balance()
         threading.Thread(target=run, daemon=True).start()
     
@@ -2119,6 +2154,19 @@ class BallBalancingGUI(tk.Tk):
             return
         if hasattr(self, 'auto_balance_var'):
             if self.auto_balance_var.get():
+                # Safety check before enabling
+                if self.system.controller.at_home:
+                    self.system_status.config(text="Cannot balance: Platform at HOME", fg=self.colors['error'])
+                    self.auto_balance_var.set(False)
+                    self.after(2000, self.refresh_system_status)
+                    return
+                
+                if not self.system.controller.at_balance:
+                    self.system_status.config(text="Platform not at BALANCE position", fg=self.colors['error'])
+                    self.auto_balance_var.set(False)
+                    self.after(2000, self.refresh_system_status)
+                    return
+                
                 self.balance_status.config(text="Balance: ON", fg=self.colors['success'])
                 self.system.controller.reset_pid()
                 self.system.start_auto_balance()
@@ -2182,11 +2230,16 @@ class BallBalancingGUI(tk.Tk):
         """Home motor: Moves the platform toward home, and applies sensorless homing."""
         if self.is_closing:
             return
-        def run():
+        
+        if not hasattr(self, 'home_btn'):
+            return
+        
+        def action():
             self.auto_balance_var.set(False)
             self.system.controller.auto_balance = False
             self.system.home_platform()
-        threading.Thread(target=run, daemon=True).start()
+        
+        self._protected_action(self.home_btn, action)
     
     
     
@@ -2194,9 +2247,12 @@ class BallBalancingGUI(tk.Tk):
         """Balance platform: Moves the platform to the balancing position."""
         if self.is_closing:
             return
-        def run():
-            self.system.balance_platform()
-        threading.Thread(target=run, daemon=True).start()
+        
+        # store button reference if not already stored
+        if not hasattr(self, 'balance_btn'):
+            return
+        
+        self._protected_action(self.balance_btn, self.system.balance_platform)
     
     
     
@@ -2262,6 +2318,20 @@ class BallBalancingGUI(tk.Tk):
         except Exception as e:
             print(f"Motor activation error: {e}")
             self.system_status.config(text="System: MOTOR ERROR", fg=self.colors['error'])
+    
+    
+    
+    def _check_robot_ready(self, action_name=""):
+        """Check if robot is ready for action. Returns True if ready."""
+        busy, msg, busy_motors = self.system.controller.wait_for_motors_ready(timeout_s=5.0)
+        
+        if busy:
+            self.system_status.config(text=f"{action_name}: {msg}", fg=self.colors['error'])
+            self.after(2000, self.refresh_system_status)
+            if self.verbose:
+                print(f"Cannot {action_name}: {msg}")
+            return False
+        return True
     
     
     
@@ -2408,6 +2478,9 @@ class BallBalancingGUI(tk.Tk):
         if self.is_closing:
             return
             
+        if not self._check_robot_ready("Level platform"):
+            return
+        
         if self.system.controller.at_balance:
             
             tilt_x_rad = radians(x)
@@ -2436,30 +2509,25 @@ class BallBalancingGUI(tk.Tk):
         if self.is_closing:
             return
         
-        # check the sliders values
-        new_shift_a = self.shift_a.get()
-        new_shift_b = self.shift_b.get()
-        new_shift_c = self.shift_c.get()
+        if not hasattr(self, 'level_btn'):
+            return
         
-        # case there are variations at the motor shift values vs previous values
-        if new_shift_a != self.old_shift_a or new_shift_b != self.old_shift_b or new_shift_c != self.old_shift_c:
+        def action():
+            new_shift_a = self.shift_a.get()
+            new_shift_b = self.shift_b.get()
+            new_shift_c = self.shift_c.get()
             
-            # update reference
-            self.old_shift_a = new_shift_a
-            self.old_shift_b = new_shift_b
-            self.old_shift_c = new_shift_c
-            
-            # update controller with current spinbox values
-            self.system.controller.BA_SHIFT_A = new_shift_a
-            self.system.controller.BA_SHIFT_B = new_shift_b
-            self.system.controller.BA_SHIFT_C = new_shift_c
-            
-            print(f"Leveling platform with shifts: A={new_shift_a}, B={new_shift_b}, C={new_shift_c}")
-            
-            self.system.save_balance_shifts()
-            
-            def run():
-                # stop auto-balance if running
+            if new_shift_a != self.old_shift_a or new_shift_b != self.old_shift_b or new_shift_c != self.old_shift_c:
+                self.old_shift_a = new_shift_a
+                self.old_shift_b = new_shift_b
+                self.old_shift_c = new_shift_c
+                
+                self.system.controller.BA_SHIFT_A = new_shift_a
+                self.system.controller.BA_SHIFT_B = new_shift_b
+                self.system.controller.BA_SHIFT_C = new_shift_c
+                
+                self.system.save_balance_shifts()
+                
                 was_auto_balance = False
                 if hasattr(self, 'auto_balance_var') and self.auto_balance_var.get():
                     was_auto_balance = True
@@ -2467,26 +2535,24 @@ class BallBalancingGUI(tk.Tk):
                     self.system.stop_auto_balance()
                     sleep(0.05)
                 
-                # home and balance with current shifts
                 self.system.home_platform()
                 sleep(0.5)
                 self.system.balance_platform()
                 
-                # reset tilt sliders to zero
                 self.dir_slider.set(90)
                 self.tilt_slider.set(0)
                 
-                # update status
-                self.system_status.config(text="Platform leveled", fg=self.colors['success'])
-                self.after(1500, self.refresh_system_status)
-            
-            threading.Thread(target=run, daemon=True).start()
+                if was_auto_balance:
+                    self.auto_balance_var.set(True)
+                    self.toggle_auto_balance()
+                
+                self.after(0, lambda: self.system_status.config(text="Platform leveled", fg=self.colors['success']))
+            else:
+                self.dir_slider.set(90)
+                self.tilt_slider.set(0)
+                self.apply_tilt(0, 0)
         
-        # case there are no variations at the motor shift values vs previous values
-        else:
-            self.dir_slider.set(90)
-            self.tilt_slider.set(0)
-            self.apply_tilt(0, 0)
+        self._protected_action(self.level_btn, action)
     
     
     
@@ -2569,15 +2635,18 @@ class BallBalancingGUI(tk.Tk):
     
     
     def apply_ball_mm(self):
-        """Apply ball diameter change."""
+        """Apply ball diameter change and save to settings."""
         if self.is_closing:
             return
         
         self.system.camera.ball_mm = self.ball_diam.get()
-        # Save ball diameter to settings
+        
+        # save ball diameter to settings
         if self.system.settings_mgr:
             self.system.settings_mgr.get().hardware.ball_diameter_mm = self.ball_diam.get()
             self.system.settings_mgr.save()
+            if self.verbose:
+                print(f"Ball diameter saved: {self.ball_diam.get()}mm")
     
     
     
@@ -2750,64 +2819,103 @@ class CirclePathPage(PathConfigPage):
         content = super().create()
         row = 0
         
-        # radius
-        tk.Label(content, text="Radius (mm):", bg=self.gui.colors['bg'],
-                fg=self.gui.colors['fg'], font=('Arial', 12)).grid(row=row, column=0, sticky="w", pady=5)
-        row += 1
+        # ===== RADIUS (horizontal layout: label left, slider right) =====
+        radius_frame = tk.Frame(content, bg=self.gui.colors['bg'])
+        radius_frame.grid(row=row, column=0, sticky="ew", pady=10)
+        radius_frame.grid_columnconfigure(0, weight=0)  # label
+        radius_frame.grid_columnconfigure(1, weight=1)  # slider
         
+        # Label: "Radius" split into two rows
+        radius_label_frame = tk.Frame(radius_frame, bg=self.gui.colors['bg'])
+        radius_label_frame.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        
+        tk.Label(radius_label_frame, text="Radius", bg=self.gui.colors['bg'],
+                fg=self.gui.colors['fg'], font=('Arial', 12, 'bold')).pack(anchor='w')
+        tk.Label(radius_label_frame, text="(mm)", bg=self.gui.colors['bg'],
+                fg=self.gui.colors['fg'], font=('Arial', 12)).pack(anchor='w')
+        
+        # Radius slider (reduced length)
         self.radius = tk.IntVar(value=70)
-        tk.Scale(content, from_=40, to=100, orient=tk.HORIZONTAL,
-                variable=self.radius, bg=self.gui.colors['bg'], font=("Arial", 16),
-                fg=self.gui.colors['fg'], length=300).grid(row=row, column=0, sticky="ew", pady=5)
+        radius_slider = tk.Scale(radius_frame, from_=40, to=100, orient=tk.HORIZONTAL,
+                                variable=self.radius, bg=self.gui.colors['bg'],
+                                fg=self.gui.colors['fg'], length=200,
+                                troughcolor=self.gui.colors['button'])
+        radius_slider.grid(row=0, column=1, sticky="ew", padx=(5,0))
         row += 1
         
-        # direction
-        tk.Label(content, text="Direction:", bg=self.gui.colors['bg'],
-                fg=self.gui.colors['fg'], font=('Arial', 16, 'normal')).grid(row=row, column=0, sticky="w", pady=5)
+        # ===== SPEED FACTOR (horizontal layout: label left, slider right) =====
+        speed_frame = tk.Frame(content, bg=self.gui.colors['bg'])
+        speed_frame.grid(row=row, column=0, sticky="ew", pady=10)
+        speed_frame.grid_columnconfigure(0, weight=0)  # label
+        speed_frame.grid_columnconfigure(1, weight=1)  # slider
+        
+        # Label: "Speed" split into two rows
+        speed_label_frame = tk.Frame(speed_frame, bg=self.gui.colors['bg'])
+        speed_label_frame.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        
+        tk.Label(speed_label_frame, text="Speed", bg=self.gui.colors['bg'],
+                fg=self.gui.colors['fg'], font=('Arial', 12, 'bold')).pack(anchor='w')
+        tk.Label(speed_label_frame, text="factor", bg=self.gui.colors['bg'],
+                fg=self.gui.colors['fg'], font=('Arial', 12)).pack(anchor='w')
+        
+        # Speed slider (reduced length)
+        self.speed = tk.DoubleVar(value=1.5)
+        speed_slider = tk.Scale(speed_frame, from_=1.0, to=2.5, resolution=0.1,
+                               orient=tk.HORIZONTAL, variable=self.speed,
+                               bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
+                               length=210, troughcolor=self.gui.colors['button'])
+        speed_slider.grid(row=0, column=1, sticky="ew", padx=(10,0))
         row += 1
         
-        # create a frame that spans the full width
+        # ===== DIRECTION (horizontal layout: label left, radios right) =====
         dir_frame = tk.Frame(content, bg=self.gui.colors['bg'])
-        dir_frame.grid(row=row, column=0, sticky="ew", pady=5)
-        dir_frame.grid_columnconfigure(0, weight=1)
-        dir_frame.grid_columnconfigure(1, weight=1)
-
+        dir_frame.grid(row=row, column=0, sticky="ew", pady=(10,5))
+        dir_frame.grid_columnconfigure(0, weight=0)  # label
+        dir_frame.grid_columnconfigure(1, weight=1)  # radios
+        
+        # Label: "Dir"
+        tk.Label(dir_frame, text="Direct.", bg=self.gui.colors['bg'],
+                fg=self.gui.colors['fg'], font=('Arial', 12, 'bold')).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        
+        # Radiobuttons container (right side)
+        radios_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
+        radios_frame.grid(row=0, column=1, sticky="w")
+        
         self.direction = tk.StringVar(value="cw")
-
-        # left-aligned radiobutton (clockwise)
-        cw_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
-        cw_frame.grid(row=0, column=0, sticky="w")
-        cw_radio = tk.Radiobutton(cw_frame, text="  ↻   ", variable=self.direction,
+        
+        cw_radio = tk.Radiobutton(radios_frame, text="↻  ", variable=self.direction,
                           value="cw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
                           selectcolor=self.gui.colors['accent'],
-                          font=('Arial', 30),
+                          font=('Arial', 20, 'bold'),
                           activebackground=self.gui.colors['bg'],
                           activeforeground=self.gui.colors['fg'],
                           highlightthickness=0)
-        cw_radio.pack(side=tk.LEFT)
+        cw_radio.pack(side=tk.LEFT, padx=(10,11))
         self.gui.remove_highlight(cw_radio)
-
-        # right-aligned radiobutton (counter-clockwise)
-        ccw_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
-        ccw_frame.grid(row=0, column=1, sticky="e")
-        ccw_radio = tk.Radiobutton(ccw_frame, text="  ↺   ", variable=self.direction,
+        
+        ccw_radio = tk.Radiobutton(radios_frame, text="↺  ", variable=self.direction,
                           value="ccw", bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
                           selectcolor=self.gui.colors['accent'],
-                          font=('Arial', 30),
+                          font=('Arial', 20, 'bold'),
                           activebackground=self.gui.colors['bg'],
                           activeforeground=self.gui.colors['fg'],
                           highlightthickness=0)
-        ccw_radio.pack(side=tk.LEFT)
+        ccw_radio.pack(side=tk.LEFT, padx=(11,0))
         self.gui.remove_highlight(ccw_radio)
         row += 1
         
+        
         # add repeats and start button
         self.add_repeats_and_start(self.start_path)
+        # adjust start button to use the new speed parameter
+        row += 1
     
     
     def start_path(self):
-        self.gui.start_circle_path(self.radius.get(), self.repeats.get(), self.direction.get())
-
+        # Use radius, direction, and the new speed factor
+        # Speed factor now affects peripheral speed calculation
+        self.gui.start_circle_path(self.radius.get(), self.repeats.get(), 
+                                    self.direction.get(), self.speed.get())
 
 
 
@@ -3228,7 +3336,8 @@ class FreePathPage(PathConfigPage):
     
     def _on_playback_complete(self):
         """Called when playback completes."""
-        print("Playback complete callback triggered")
+        if self.verbose:
+            print("Playback complete callback triggered")
         def update_ui():
             try:
                 if self.status_label and self.status_label.winfo_exists():

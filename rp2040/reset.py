@@ -1,18 +1,6 @@
-"""
-Andrea Favero 20260605
+# Andrea Favero 20250123
+# Helper code to stops the core 1 tasks
 
-MirrorBallBot (MBB), a robot seeing through a mirror
-
-More info at:
-  https://github.com/AndreaFavero71/mirrorballbot
-  https://www.instructables.com/MirrorBallBot-MBB-An-Alternative-Ball-Balancing-Ro/
-
-
-Helper code to stops the core 1 tasks
-
-MIT License
-Copyright (c) 2026 Andrea Favero
-"""
 
 import time, _thread                         # micropython modules
 

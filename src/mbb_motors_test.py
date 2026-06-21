@@ -621,17 +621,18 @@ def main(motors_list=3):
             print(f"\nMotors {motors_list} are disabled: Axes are free for {pause} seconds")
             sleep(5)
             print("\n" * 3)
-        
-        print("\nTest completed.\n\n")
+    
     
     
     except KeyboardInterrupt:
-        print("\n\nTest interrupted by user")
+        print("\n\nInterrupted by user")
     
     
     finally:
         mc.disable_motors()
         sleep(0.1)
+        print("\nTest completed.\n\n")
+        
     
 
 

@@ -8,6 +8,10 @@ More info at:
   https://www.instructables.com/MirrorBallBot-MBB-An-Alternative-Ball-Balancing-Ro/
 
 
+MIT License
+Copyright (c) 2026 Andrea Favero
+
+
 # Bit position constants for motor status bitmask
 # These allow multiple states to be represented simultaneously in a single byte
 BIT_ENABLED   = 0  # 1 << 0 = 1   - Motor driver powered on
@@ -18,11 +22,6 @@ BIT_STALL     = 4  # 1 << 4 = 16  - Stall/overcurrent detected
 BIT_ERROR     = 5  # 1 << 5 = 32  - Error state (thermal, overcurrent, etc)
 BIT_HOMING    = 6  # 1 << 6 = 64  - Homing procedure active
 BIT_RETRACT   = 7  # 1 << 7 = 128 - Retracting from home (sub-phase of homing)
-
-
-
-MIT License
-Copyright (c) 2026 Andrea Favero
 """
 
 from machine import mem32

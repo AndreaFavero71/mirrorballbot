@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260605
+Andrea Favero 20260607
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -36,7 +36,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 from dataclasses import dataclass, field, asdict, fields, is_dataclass
 from typing import Optional, List, Dict, Any, Union
@@ -216,6 +216,15 @@ class PIDSettings:
 
 
 @dataclass
+class CurrentSettings:
+    """Stepper motor current control settings."""
+    irun: int = 31          # Run current when moving (0-31, 0=3%, 31=100%)
+    ihold: int = 11         # Holding current when stopped (0-31, 0=3%, 31=100%)
+    tpowerdown: int = 20    # Delay from standstill to current reduction (2-255, 0.5~5.5s)
+
+
+
+@dataclass
 class VisionSettings:
     hsv_lower: List[int] = field(default_factory=lambda: [0, 140, 181])
     hsv_upper: List[int] = field(default_factory=lambda: [9, 237, 247])
@@ -274,6 +283,7 @@ class RobotSettings:
     motors: MotorSettings = field(default_factory=MotorSettings)
     controller: ControllerSettings = field(default_factory=ControllerSettings)
     pid: PIDSettings = field(default_factory=PIDSettings)
+    current: CurrentSettings = field(default_factory=CurrentSettings)
     vision: VisionSettings = field(default_factory=VisionSettings)
     fans: FansSettings = field(default_factory=FansSettings)
     paths: PathsSettings = field(default_factory=PathsSettings)
@@ -635,6 +645,34 @@ class SettingsManager:
             self.save()
             if self.verbose:
                 print(f"Updated deadzone: {deadzone_tenths/10:.1f}mm")
+    
+    
+    
+    def get_stepper_current(self) -> Dict[str, int]:
+        """Get current stepper current settings."""
+        if self.settings:
+            return {
+                "irun": self.settings.current.irun,
+                "ihold": self.settings.current.ihold,
+                "tpowerdown": self.settings.current.tpowerdown
+            }
+        return {"irun": 31, "ihold": 11, "tpowerdown": 20}
+    
+    
+    
+    def update_stepper_current(self, irun: int = None, ihold: int = None, tpowerdown: int = None) -> None:
+        """Update stepper current settings and save."""
+        if self.settings:
+            if irun is not None:
+                self.settings.current.irun = max(0, min(irun, 31))
+            if ihold is not None:
+                self.settings.current.ihold = max(0, min(ihold, 31))
+            if tpowerdown is not None:
+                self.settings.current.tpowerdown = max(2, min(tpowerdown, 255))
+            self.save()
+            if self.verbose:
+                print(f"Updated stepper current: IRUN={self.settings.current.irun}, "
+                      f"IHOLD={self.settings.current.ihold}, TPOWERDOWN={self.settings.current.tpowerdown}")
     
     
     

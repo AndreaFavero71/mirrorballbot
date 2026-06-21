@@ -7,7 +7,6 @@ More info at:
   https://github.com/AndreaFavero71/mirrorballbot
   https://www.instructables.com/MirrorBallBot-MBB-An-Alternative-Ball-Balancing-Ro/
 
-mem16 accessing via lock
 
 MIT License
 Copyright (c) 2026 Andrea Favero

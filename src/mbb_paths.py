@@ -236,51 +236,44 @@ class PathExecutor:
     # ==================== CIRCLE PATH ====================
     
     def circle_path(self, radius_mm: int, repeats=1, direction='cw', 
-                    peripheral_speed_mm_per_s: float = None,
-                    stop_event: threading.Event = None):
+                    speed_factor: float = 1.0, stop_event: threading.Event = None):
         """
         Execute a circular path with orbit visualization.
-        The ball will follow a circle of specified radius.
         
         Args:
             radius_mm: Radius of the circle in millimeters
             repeats: Number of circles to complete
             direction: 'cw' for clockwise, 'ccw' for counter-clockwise
-            peripheral_speed_mm_per_s: Target speed along the circle in mm/s 
-                                       (default: 150 mm/s - empirically good)
+            speed_factor: Speed multiplier (0.5 = half speed, 2.0 = double speed)
             stop_event: Event to signal path stop
         """
         
         radius_mm = min(100, max(radius_mm, self.camera.ball_mm))
         
-        # default peripheral speed: 150 mm/s - works well across different radii
-        DEFAULT_PERIPHERAL_SPEED = 150.0  # mm/s
+        # Base speed: 150 mm/s (works well across different radii)
+        BASE_SPEED_MM_PER_S = 150.0
         
-        # determine peripheral speed
-        if peripheral_speed_mm_per_s is None:
-            v = DEFAULT_PERIPHERAL_SPEED
-            speed_source = f"default ({v:.1f} mm/s)"
-        else:
-            v = peripheral_speed_mm_per_s
-            speed_source = f"user-specified ({v:.1f} mm/s)"
+        # Apply speed factor
+        peripheral_speed = BASE_SPEED_MM_PER_S * speed_factor
         
         # calculate angular speed from peripheral speed and radius
         # v = ω * r  =>  ω = v / r
-        omega = v / radius_mm  # rad/s
-        period_sec = (2 * np.pi * radius_mm) / v  # time for one full circle
+        omega = peripheral_speed / radius_mm  # rad/s
+        period_sec = (2 * np.pi * radius_mm) / peripheral_speed  # time for one full circle
         
         if self.verbose:
             print("\n" + "="*60)
             print("CIRCLE PATH FOLLOWING - ORBIT VISUALIZATION")
             print("="*60)
             print(f"Circle radius: {radius_mm} mm")
-            print(f"Peripheral speed: {v:.1f} mm/s")
+            print(f"Base speed: {BASE_SPEED_MM_PER_S:.1f} mm/s")
+            print(f"Speed factor: {speed_factor:.1f}x")
+            print(f"Peripheral speed: {peripheral_speed:.1f} mm/s")
             print(f"Angular speed: {omega:.3f} rad/s ({omega*180/np.pi:.1f}°/s)")
             print(f"Period: {period_sec:.2f} seconds per circle")
             print(f"Circumference: {2*np.pi*radius_mm:.1f} mm")
             print(f"Direction: {direction}")
             print(f"Repeats: {repeats}")
-            print(f"Speed source: {speed_source}")
             print("="*60)
         
         # check if auto-balance is running

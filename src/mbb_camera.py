@@ -984,8 +984,8 @@ class Camera:
             window_result = "Ball Only (Auto)"
             window_names = (window_detection, window_result)
             
-            self.display_manager.create_window(window_detection, 352, 352, (0, 30))
-            self.display_manager.create_window(window_result, 352, 352, (360, 30))
+            self.display_manager.create_window(window_detection, 352, 352, (0, 50)) #(0, 30))
+            self.display_manager.create_window(window_result, 352, 352, (360, 40))  #(360, 30))
             
             # show initial message
             if self.latest_frame is not None:

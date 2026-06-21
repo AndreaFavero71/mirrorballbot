@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260605
+Andrea Favero 20260607
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # BALL BALANCING ROBOT by ANDREA FAVERO
 # ============================================================================
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 from math import sqrt, radians, degrees, cos, sin, gcd
 from gpiozero import OutputDevice, PWMOutputDevice
@@ -94,6 +94,8 @@ class MotorController:
     # special I2C response values
     I2C_RESPONSE_NO_DATA        = 254
     I2C_RESPONSE_CHECKSUM_ERROR = 255
+    
+    
     
     def __init__(self, verbose=False, settings_mgr=None):
         """
@@ -397,7 +399,7 @@ class MotorController:
         for motor in self.motors:
             self.send_command(motor, 9, 1)
             if self.verbose:
-                print(f"Reset of the RP board for motor {motor}")
+                print(f"Reset of the RP2040 board for motor {motor}")
         sleep(6)
         print()
     
@@ -484,9 +486,51 @@ class MotorController:
             sleep(interval_s)
         
         return False, self.request_status_update(motor)
-
     
+    
+    
+    def are_motors_busy(self, timeout_s=5.0):
+        """
+        Check if any motor is busy (moving, homing, etc.)
+        Returns (is_busy, status_message, busy_motors_list)
+        """
+        start_time = time()
+        busy_motors = []
         
+        while (time() - start_time) < timeout_s:
+            busy_motors = []
+            
+            for motor in self.motors.keys():  # A, B, C
+                # request fresh status
+                status = self.request_status_update(motor)
+                
+                # skip invalid responses
+                if status in (self.I2C_RESPONSE_NO_DATA, self.I2C_RESPONSE_CHECKSUM_ERROR):
+                    busy_motors.append(f"{motor}(ERR)")
+                    continue
+                
+                # check busy bits: BUSY, MOVING, HOMING, RETRACT
+                busy_bits = (1 << self.STATUS_BIT_BUSY) | \
+                            (1 << self.STATUS_BIT_MOVING) | \
+                            (1 << self.STATUS_BIT_HOMING) | \
+                            (1 << self.STATUS_BIT_RETRACT)
+                
+                if status & busy_bits:
+                    busy_motors.append(motor)
+            
+            if not busy_motors:
+                return False, "READY", []
+            
+            # still busy, wait and retry
+            sleep(0.1)
+        
+        # timeout - still busy
+        if busy_motors:
+            return True, f"BUSY: motors {', '.join(busy_motors)}", busy_motors
+        else:
+            return True, "BUSY (unknown)", []
+
+
 
 
 # ============================================================================
@@ -969,6 +1013,13 @@ class BalanceController:
     def quantize_angle(self, angle_tenths: float) -> float:
         """Round a motor angle (in tenths of degree) to the nearest reachable microstep."""
         return round(angle_tenths / self.STEP_ANGLE_TENTHS) * self.STEP_ANGLE_TENTHS
+    
+    
+    
+    def wait_for_motors_ready(self, timeout_s=5.0):
+        """Wait for motors to be ready for new commands."""
+        return self.mc.are_motors_busy(timeout_s=timeout_s)
+    
     
     
     def move_to_angles(self, target_angles: MotorAngles):
@@ -1654,6 +1705,9 @@ class BallBalancingSystem:
         # initialize I2C
         self._initialize_i2c()
         
+        # initialize the stepper current
+        self._initialize_motor_current()
+        
         # initialize platform
         self._initialize_platform()
 
@@ -1690,6 +1744,40 @@ class BallBalancingSystem:
     
     
     
+    def _initialize_motor_current(self):
+        """
+        Set stepper current from settings:
+        - IRUN: current when moving (0-31 -> 0-100% of Imax)
+        - IHOLD: current when stopped (0-31 -> 0-100% of Imax)
+        - TPOWERDOWN: delay from last step to current reduction (2-255 -> ~0.5-5.6s)
+        """
+        if self.verbose:
+            print("\nInitializing stepper current...")
+        
+        # get current settings from settings manager
+        current_settings = self.settings_mgr.get_stepper_current()
+        irun = current_settings["irun"]
+        ihold = current_settings["ihold"]
+        tpowerdown = current_settings["tpowerdown"]
+        
+        # pack IRUN and IHOLD into a single 16-bit value
+        packed_irun_ihold = (irun << 8) | ihold
+        
+        if self.verbose:
+            print(f"  Stepper current: IRUN={irun} ({int(100*irun/31)}%), IHOLD={ihold} ({int(100*ihold/31)}%)")
+            print(f"  TPOWERDOWN={tpowerdown} (delay ~{(tpowerdown+1)*0.022:.2f}s)")
+        
+        for motor in self.mc.motors:
+            # command 10: set IRUN and IHOLD
+            self.mc.send_command(motor, 10, packed_irun_ihold)
+            sleep(0.1)
+            
+            # command 11: set TPOWERDOWN
+            self.mc.send_command(motor, 11, tpowerdown)
+            sleep(0.1)
+    
+    
+    
     def _initialize_platform(self):
         """Initialize the platform position to balance position."""
         
@@ -1721,13 +1809,23 @@ class BallBalancingSystem:
             side_mm, repeats, tolerance_mm, settle_time_ms
         )
     
+    
     def circle_path(self, radius_mm: int, repeats=1, direction='cw', 
-                    peripheral_speed_mm_per_s: float = None):
-        """Execute circle path."""
-        self.path_manager.start_path(
-            self.path_executor.circle_path,
-            radius_mm, repeats, direction, peripheral_speed_mm_per_s
-        )
+                    speed_factor: float = 1.5):
+        """
+        Execute a circular path.
+        
+        Args:
+            radius_mm: Radius of circle in mm
+            repeats: Number of times to repeat
+            direction: 'cw' or 'ccw'
+            speed_factor: Speed multiplier (0.5 = half speed, 2.0 = double speed)
+        """
+        if self.path_executor:
+            self.path_executor.circle_path(radius_mm, repeats, direction, speed_factor)
+        else:
+            print("Error: Path executor not initialized")
+    
     
     def infinity_path(self, size_mm: int, speed_factor: float = 1.0, 
                       repeats: int = 1, stretch: float = 1.5):
@@ -1821,6 +1919,19 @@ class BallBalancingSystem:
 
     def start_auto_balance(self):
         """Start auto-balancing mode."""
+        
+        # case the platform is at HOME the auto-balance is refused
+        if self.controller.at_home:
+            if self.verbose:
+                print("Cannot start auto-balance: Platform is at HOME position")
+            return False
+        
+        # case the platform is not at balance position the auto-balance is refused
+        if not self.controller.at_balance:
+            if self.verbose:
+                print("Cannot start auto-balance: Platform not at BALANCE position")
+            return False
+        
         if self.auto_balance_thread and self.auto_balance_thread.is_alive():
             return
         
@@ -1904,6 +2015,16 @@ class BallBalancingSystem:
     
     def balance_platform(self):
         """Move platform to balance position (level)."""
+        
+        # HERE
+        print(f"DEBUG: balance_platform called, at_balance={self.controller.at_balance}")
+        
+        # if already in progress, just return
+        if hasattr(self, '_balancing_in_progress') and self._balancing_in_progress:
+            if self.verbose:
+                print("Balance already in progress, ignoring")
+            return False
+        
         # if already balanced, just return
         if self.controller.at_balance:
             if self.verbose:

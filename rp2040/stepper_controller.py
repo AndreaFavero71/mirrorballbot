@@ -18,6 +18,8 @@ from shared_variables import shared_variables
 from machine import Pin, reset
 from TMC_2209_driver import *
 
+
+
 class StepperController:
     
     # Bit position constants for status bitmask
@@ -49,11 +51,10 @@ class StepperController:
     
     def _init(self, reverse=False, ms=0, printout=True):
         # reverse: use True to reverse the stepper direction (solving wiring issue), otherwise False
-        # CW and CCW consider watching the motor with its axis pointing to the observer.
         # ms: microstepping, from 0 to 3
         
         self.reverse = reverse             # flag to reverse the stepper direction (reverse==True) if wiring issues
-        self.ms = ms                       # integer reppresenting the microstep (0=1/8, 1=1/32, 2=1/64 and 3=1/16)
+        self.ms = ms                       # integГЁr reppresenting the microstep (0=1/8, 1=1/32, 2=1/64 and 3=1/16)
         self.printout = printout           # flag to print some data to the terminal for debug purpose  
         print("\n[core 0] Uploading stepper_controller ...")
 
@@ -84,6 +85,10 @@ class StepperController:
         self.direction = 1 if self.reverse else 0 # motor direction (rotation) is set to 0 unless modified (reverse==True)
         self.position = 0                   # counter with the motor position (reference position is 0)
         self.estimated_pos = 0              # counter with the expected motor steps (reference position is 0)
+        
+        # settings for holding current
+        self.current_irun = 31              # Run current (100%)
+        self.current_ihold = 15             # Holding current (50%)
         
         # Status bitmask tracking (initialize as disabled)
         self.status_flags = 0               # current status as bitmask
@@ -120,14 +125,17 @@ class StepperController:
             self.set_stallguard(threshold=0)                     # set the TMC 2209 StallGuard off (get max torque)
             self.tmc.setCoolStep_Threshold(threshold=3200)       # set the TMC 2209 CoolStep to 1600 (experimental)
         
-        # CoolStep and StallGuards are active when threshold > TSTEP (timeStep)
-        # TSTEP is the step period in TMC clocks units (f=2MHz) calculated for 1/256 microstep
-        # threshold = 1600 ensures STALLGUARD operation for steps frequency
-        #   --> f > 400Hz  at 1/8  microstep
-        #   --> f > 800Hz  at 1/16 microstep
-        #   --> f > 1600Hz at 1/32 microstep
-        #   --> f > 3200Hz at 1/34 microstep
-        
+            # CoolStep and StallGuards are active when threshold > TSTEP (timeStep)
+            # TSTEP is the step period in TMC clocks units (f=2MHz) calculated for 1/256 microstep
+            # threshold = 1600 ensures STALLGUARD operation for steps frequency
+            #   --> f > 400Hz  at 1/8  microstep
+            #   --> f > 800Hz  at 1/16 microstep
+            #   --> f > 1600Hz at 1/32 microstep
+            #   --> f > 3200Hz at 1/34 microstep
+            
+            # after 2 seconds idle, current drops to 50% of run current
+            # when movement starts again, current automatically returns to 100%
+            self.tmc.setStepperCurrent(irun=self.current_irun, ihold=self.current_ihold)
         
         
         # set the default steppers speed for the sensorless hominng
@@ -588,6 +596,61 @@ class StepperController:
     
     
     
+    def _set_stepper_current(self, irun=None, ihold=None, iholddelay=5):
+        """
+        Set holding current parameters.
+        Only parameters that are not None will be updated.
+        
+        irun: 0-31 (0=3%, 31=100%) - Current when motor is moving.
+        ihold: 0-31 (0=3%, 15=50%, 31=100%) - Current when motor is stopped.
+        iholddelay: 0-15 - Additional delay before reduction, in units of ~0.022 seconds.
+        """
+        # update only provided parameters
+        if irun is not None:
+            self.current_irun = max(0, min(irun, 31))
+        if ihold is not None:
+            self.current_ihold = max(0, min(ihold, 31))
+        
+        # Calculate percentage for display
+        irun_percent = int(100 * self.current_irun / 31)
+        ihold_percent = int(100 * self.current_ihold / 31)
+        
+        if self.printout:
+            print(f"[core 0] Current settings: IRUN={self.current_irun} ({irun_percent}%), IHOLD={self.current_ihold} ({ihold_percent}%)")
+        
+        self.tmc.setStepperCurrent(irun=self.current_irun, 
+                                   ihold=self.current_ihold, 
+                                   iholddelay=iholddelay)
+    
+    
+    
+    def _set_power_down_delay(self, delay):
+        """
+        Set auto current reduction delay (TPOWERDOWN register).
+        
+        delay: 2-255 (minimum 2 required for StealthChop auto tuning)
+        Time range: about 0 to 5.6 seconds
+        Actual time = delay * 2^18 / 12MHz ≈ delay * 0.022 seconds
+        
+        Typical values:
+        delay=2   → about 0.044s (minimum for StealthChop)
+        delay=20  → about 0.44s (default)
+        delay=45  → about 1.0s
+        delay=90  → about 2.0s
+        delay=136 → about 3.0s
+        delay=255 → about 5.6s (maximum)
+        """
+        # clamp to valid range: 2-255 (minimum 2 for StealthChop)
+        delay = max(2, min(delay, 255))
+        
+        if self.printout:
+            delay_seconds = delay * 0.022  # approximate
+            print(f"[core 0] TPOWERDOWN = {delay} (current reduction after ~{delay_seconds:.2f}s)")
+        
+        self.tmc.setPowerDownDelay(delay)
+    
+    
+    
     def is_stepper_busy(self, status=None):
         """
         Check or set the motor 'busy' status:
@@ -617,8 +680,8 @@ class StepperController:
     def _drive_stepper(self, direction, delay, steps):
         """
         Sends parameters to the steps generators (PIO SMO).
-        If rumps, sync pin cannot be used, otherwise motor will wait for sync pin, then execute.
-        Returns immediately (about 230 us)
+        Returns immediately (about 230 us).
+        (the long if/elif/else method looks weird, yet faster than other methods tested)
         """
         
         if steps <= 0:
@@ -704,12 +767,13 @@ class StepperController:
 
         if self.printout:
             if self.reverse:
-                print(f"[core 0] Motor prepared: dir={'CW' if direction else 'CCW'}, "
-                      f"         delay={delay}, steps={steps}")
-            else:
                 print(f"[core 0] Motor prepared: dir={'CCW' if direction else 'CW'}, "
                       f"         delay={delay}, steps={steps}")
-            print(f"[core 0] Estimated new position: {self.estimated_pos}")
+                print(f"[core 0] Estimated new position: {self.estimated_pos}")
+            else:
+                print(f"[core 0] Motor prepared: dir={'CW' if direction else 'CCW'}, "
+                      f"         delay={delay}, steps={steps}")
+                print(f"[core 0] Estimated new position: {self.estimated_pos}")
         
         return True
     
@@ -718,7 +782,7 @@ class StepperController:
     def run_stepper(self, speed, steps):
         """
         Main method called from I2C handler.
-        speed: 16-bit value where <32768 = CW, >32768 = CCW, 32768 = stop
+        speed: 16-bit value where <32768 = CCW, >32768 = CW, 32768 = stop
         steps: number of steps to move
         """
         if shared_variables.halt.read():  # case the shared_variables.halt variable is set True
@@ -744,11 +808,11 @@ class StepperController:
         # determine direction and delay
         speed_k = 8
         if speed < 32768:
-            direction = 1 if self.reverse else 0        # CCW if self.reverse otherwise CW
+            direction = 1 if self.reverse else 0        # CW if self.reverse otherwise CCW
             # delay uses a 18bit range (0 to 262144)
             delay = speed_k * (32768 - (32768 - speed))
         elif speed > 32768:
-            direction = 0 if self.reverse else 1        # CW if self.reverse otherwise CCW
+            direction = 0 if self.reverse else 1        # CCW if self.reverse otherwise CW
             # delay uses a 18bit range (0 to 262144)
             delay = speed_k * (32768 - (speed - 32768))
         
@@ -775,6 +839,9 @@ class StepperController:
         7:  Get motor status (returns bitmask - this is the ONLY read command)
         8:  Reverse motor direction
         9:  Hard reset of RP2040, via machine.reset()
+        10: Set stepper holding current IHOLD, after TPOWERDOWN time since last step
+        11: Set TPOWERDOWN time, to lower the stepper current to IHOLD
+        
         """
         
         # command 0: set microstepping
@@ -863,6 +930,20 @@ class StepperController:
             "Hard reset the RP2040, via machine.reset() command"
             reset()
             
+        # command 10: set IRUN and IHOLD (packed into field2)
+        # field2 bits: high byte (bits 8-12) = irun (0-31), low byte (bits 0-4) = ihold (0-31)
+        elif field1 == 10:
+            irun = (field2 >> 8) & 0x1F      # extract upper 5 bits (0-31)
+            ihold = field2 & 0x1F            # extract lower 5 bits (0-31)
+            self._set_stepper_current(irun=irun, ihold=ihold)
+            if self.printout:
+                print(f"[core 0] Set IRUN={irun}, IHOLD={ihold}")
+
+        # command 11: set TPOWERDOWN (auto current reduction delay)
+        # field2: 20-255, delay ≈ 2~5.6 seconds
+        elif field1 == 11:
+            self._set_power_down_delay(delay=field2)
+        
         else:
             print(f"\n[core 0] Command {field1} not recognized\n")
     
@@ -937,8 +1018,8 @@ class StepperController:
         
         # retract the motor away from home, in case it is already at home
         self.stop_stepper()                          # stepper is stopped (in the case it wasn't)
-        direction = 0 if self.reverse else 1         # set stepper direction to 0 (CCW) if self.reverse otherwise 1 (CW)
-        self.motor_dir.value(direction)              # set stepper direction to 1 (CCW) if self.reverse otherwise 1 (CW)
+        direction = 0 if self.reverse else 1         # set stepper direction to 0 (CW) if self.reverse otherwise 1 (CCW)
+        self.motor_dir.value(direction)              # set stepper direction to 1 (CW) if self.reverse otherwise 1 (CCW)
         self.set_pls_counter(0)                      # sets the initial value for stepper steps counting
         self.set_stallguard(threshold = 0)           # set SG threshold acting on the DIAG pin, to max torque
         packed_target = self.pack_parameters(stepper_val, retracting_steps) # speed and number of steps to retract from home
@@ -969,8 +1050,8 @@ class StepperController:
             print("[core 0] Phase 2: Searching for home position")
 
         # home the motor
-        direction = 1 if self.reverse else 0         # set stepper direction to 1 (CCW) if self.reverse otherwise 0 (CW)
-        self.motor_dir.value(direction)              # set stepper direction to 1 (CCW) if self.reverse otherwise 0 (CW)
+        direction = 1 if self.reverse else 0         # set stepper direction to 1 (CW) if self.reverse otherwise 0 (CCW)
+        self.motor_dir.value(direction)              # set stepper direction to 1 (CW) if self.reverse otherwise 0 (CCW)
         self.set_stallguard(threshold = 0)           # set SG threshold acting on the DIAG pin, to max torque (startup the motor)
         self.set_pls_counter(0)                      # sets the initial value for stepper steps counting
         packed_target = self.pack_parameters(stepper_val, max_homing_steps) # speed and number of steps to find home

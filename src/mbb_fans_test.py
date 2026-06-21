@@ -164,10 +164,6 @@ def main():
     
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
-    
-    finally:
-        self.fans_off
-        
 
     
 
