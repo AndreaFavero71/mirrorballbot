@@ -17,7 +17,7 @@ MirrorBallBot is fully open-source:
 ## Key innovations
 <img src=".//images/mbb_principle.png" width="400">
 
-1. **Vision system**: Unlike most designs, it uses side-mounted camera poinying to a 27° angled mirror.
+1. **Vision system**: Unlike most designs, it uses side-mounted camera pointing at a mirror (inclined 27°).
 By considering the same camera and same robot height, the mirror concept increases the Field of View by 58%.
 This allows for a larger platform while keeping the robot compact.
 
