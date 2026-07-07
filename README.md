@@ -5,8 +5,8 @@ MirrorBallBot keeps a ball centred on a circular platform by tilting it with thr
 You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.<br>
 MirrorBallBot is fully open-source:
  - extensive instruction manual (~150 pages)
- - code
  - stl and step files
+ - code
 
 <br><br>
 ## Demo video
@@ -17,7 +17,7 @@ MirrorBallBot is fully open-source:
 ## Key innovations
 <img src=".//images/mbb_principle.png" width="400">
 
-1. **Vision system**: Unlike most designs, it uses a mirror and a side-mounted camera.
+1. **Vision system**: Unlike most designs, it uses side-mounted camera poinying to a 27° angled mirror.
 By considering the same camera and same robot height, the mirror concept increases the Field of View by 58%.
 This allows for a larger platform while keeping the robot compact.
 
