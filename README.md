@@ -1,6 +1,6 @@
 # MirrorBallBot
 
-A ball-balancing robot that sees through a mirror.<br><br>
+An open-source ball-balancing robot that sees through a mirror.<br><br>
 MirrorBallBot keeps a ball centred on a circular platform by tilting it with three stepper motors.<br>
 You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.<br>
 MirrorBallBot is fully open-source:
@@ -10,7 +10,13 @@ MirrorBallBot is fully open-source:
 
 <br><br>
 ## Demo video
+https://youtu.be/ORftNl7bZG4<br><br>
 [![Watch the Demo](https://i.ytimg.com/vi/ORftNl7bZG4/maxresdefault.jpg)](https://youtu.be/ORftNl7bZG4)
+
+<br><br>
+https://youtu.be/C2Nf5jWF-SY<br><br>
+[![Watch the Demo](https://i.ytimg.com/vi/C2Nf5jWF-SY/maxresdefault.jpg)](https://youtu.be/C2Nf5jWF-SY)
+
 
 
 <br><br>
