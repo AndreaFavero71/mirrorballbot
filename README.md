@@ -35,14 +35,15 @@ This allows for a larger platform while keeping the robot compact.
 
 - **Touchscreen GUI:** 7" DSI display with full control interface.
 - **Real-Time Video Feed:** Live camera images displayed directly on screen.
-- **Autonomous Auto-Balance:** Keeps the ball perfectly centred.
+- **Autonomous Auto-Balance:** Keeps the ball centred.
 - **Finger-Follow Mode:** Drag your finger across the screen to guide the ball.
 - **Predefined Paths:** Execute geometric patterns (Square, Circle, Infinity, Triangle, Line).
 - **Record & Replay:** Draw custom paths with your finger to record and loop them.
 - **Interactive PID Tuning:** Adjust control loop parameters via the GUI in real time.
 - **Automatic HSV Calibration:** Instantly adapts to different ball colours and ambient lighting.
-- **Sensorless Homing:** Uses TMC2209 StallGuard—no physical limit switches required.
-- **Active Thermal Management:** PWM-controlled cooling fans with automated temperature monitoring.
+- **Sensorless Homing:** Uses TMC2209 StallGuard, no physical limit switches required.
+- **Active Thermal Management:** PWM controlled cooling fans with automated temperature monitoring.
+- **Two versions available:** Wooden base or fully 3D-printable.
 
 
 <br><br>
@@ -83,10 +84,12 @@ This allows for a larger platform while keeping the robot compact.
 ## Documentation
 The complete instruction manual is available as a **150+ page PDF file**.<br>
 It provides exhaustive coverage of:
-- PCB assembly & soldering maps (250+ pads)
-- 3D printing and wood/acrylic fabrication
-- Detailed step-by-step mechanical assembly (29 steps with photos)
-- Software environment setup and configuration parameters
+- BOM
+- Wooden base or fully 3D printable version selection.
+- 3D printing and acrylic laser cutting.
+- PCB assembly & soldering maps (250+ pads).
+- Detailed step-by-step mechanical assembly (29 steps with photos).
+- Software environment setup and configuration parameters.
 - GUI operation, PID tuning, and troubleshooting/QA<br>
 
 Download the How to make instruction manual from [doc/](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/How_to_make_MirrorBallBot.pdf) folder
@@ -95,66 +98,79 @@ Download the How to make instruction manual from [doc/](https://github.com/Andre
 <br><br>
 ## Quick Start (for experienced makers)
 
-1. 3D print all parts (no supports except Power_in case)
-2. Laser cut acrylic (translucent plate + mirror)
-3. CNC or route the wood base
-4. Assemble the MirrorBallBot PCB (250+ solder pads)
-5. Flash each RP2040-Zero with **MicroPython v1.24 Pimoroni Tiny2040 uf2 firmware (https://micropython.org/download/PIMORONI_TINY2040/)
-6. Copy the MicroPython file into the RP2040-Zero boards (files at https://github.com/AndreaFavero71/mirrorballbot/tree/main/rp2040)
+1. Decide if wooden base or fully 3D-printed version. If wooden, CNC or route the base.
+2. 3D print all parts (no supports except Power_in case if wooden base, or Mirror_support if fully 3D-priteable version).
+3. Laser cut acrylic (translucent plate + mirror).
+4. Assemble the MirrorBallBot PCB (250+ solder pads).
+5. Flash each RP2040-Zero with **MicroPython v1.24 Pimoroni Tiny2040** uf2 firmware (https://micropython.org/download/PIMORONI_TINY2040/).
+6. Copy the MicroPython file into the RP2040-Zero boards (files at https://github.com/AndreaFavero71/mirrorballbot/tree/main/rp2040).
 7. Set up the Raspberry Pi:
-     - Flash a 32-bit Desktop OS (Trixie, or Bookworm) into a microSD
+     - Flash a 32-bit Desktop OS (Trixie, or Bookworm) into a microSD.
       ```
       git clone https://github.com/AndreaFavero71/mirrorballbot.git
       cd mirrorballbot/src
       bash mbb_install.sh
       ```
-8. Set the XL4015 voltage (OUT+) to 5.1V
-9. Set the drivers Vref according to the steppers' rated current
-10. Run first tests before full assembly; This includes checking the motor direction (it can be reversed via a settings in mbb_settings.json)
-11. Full assembly following the step-by-step guide
+8. Set the XL4015 voltage (OUT+) to 5.1V.
+9. Set the drivers **Vref** according to the steppers' rated current.
+10. Run first tests before full assembly; This includes checking the motor direction (it can be reversed via a settings in mbb_settings.json).
+11. Full assembly following the step-by-step guide.
 12. Calibrations:
-     - Camera inclination (centre the camera view to the platform centre)
-     - Sensorless homing calibration
-     - Ball colour calibration
-     - PID tuning
+     - Camera inclination (centre the camera view to the platform centre).
+     - Sensorless homing calibration.
+     - Ball colour calibration.
+     - PID tuning.
 13. Enjoy the robot!
 14. Provide feedback :smile:
 
 
 <br><br>
 ## First Run
-After assembly, place the ball on the middle of the platform, and start the GUI:
+After assembly, place the ball on the middle of the platform, and start the GUI via a Graphical Remote Desktop Client, like VNCViewer:
   ```
   cd ~/mirrorballbot/src
   python3 mbb_gui.py
   ```
 
-The GUI will open on the touchscreen.
-Auto-Balance should already be active, and the robot will start moving.
+Differently, just tap the MirrorBallBot icon on the 7-inch Raspberry Pi Desktop (the icon got automatically installed on the desktop, thanks to the mbb_install.sh).<br>
+
+The GUI will open on the touchscreen.<br>
+Auto-Balance should already be active, and the robot will start balancing the ball.<br>
+If the ball is not wrapped by a green contour, set an indicative ball size and run the AUTO calibration for the colors.<br>
+
 
 
 <br><br>
 ## Tools You'll Need
-- 3D printer (Minimum 210x210 mm bed capacity)
-- Laser cutter or CNC (for acrylic parts; commercial laser-cutting services work great)
-- Hand router or CNC (for carving wire channels in the wood base), unless you prefer the fully 3D printable version
-- Soldering iron and basic electronics assembly tools
-- Multimeter (essential for driver Vref tuning)
-- Precision screwdrivers and ball-end Allen keys
-- Computer with SD card reader
-- Solid foundational skills in DIY mechatronics and Python scripting
+- 3D printer (Minimum 210x210 mm bed capacity).
+- Laser cutter or CNC (for acrylic parts; commercial laser-cutting services work great).
+- Hand router or CNC (for carving wire channels in the wood base), unless you prefer the fully 3D printable version.
+- Soldering iron and basic electronics assembly tools.
+- Multimeter (essential for driver Vref tuning).
+- Screwdrivers and ball-end Allen keys.
+- Computer with SD card reader.
+- Solid foundational skills in DIY mechatronics and Python scripting.
+
+
+<br><br>
+## Sponsors
+MirrorBallBot has been designed as an open-source project. This means I purchased most of the parts myself, just as anyone else would, and invested a considerable amount of time to make a fairly complex robot as easy as possible to reproduce.
+
+I also greatly appreciate companies that support my hobby, by providing parts or services free of charge. The companies below generously sponsored components used in the MirrorBallBot project:
+- Thanks to **PCBWay** for sponsoring the MirrorBallBot PCB [https://www.pcbway.com/]
+- Thanks to **ELECROW** for sponsoring the 7" DSI touchscreen [https://www.elecrow.com/7-inch-800-480-dsi-display-touch-screen-with-bracket-compatible-with-raspberry-pi.html?idd=5]
+
+I would also like to thank ELECROW and PCBWay for believing in this project. They both offered their support when MirrorBallBot was still just an idea, with no guarantee that it would ever reach the stage of becoming a published project.
 
 
 <br><br>
 ## Credits
-- Low-level I2C driver for RP2040 adapted from danjperron
-- PCBWay for sponsoring the MirrorBallBot PCB [https://www.pcbway.com/]
-- ELECROW for sponsoring the 7" DSI touchscreen [https://www.elecrow.com/7-inch-800-480-dsi-display-touch-screen-with-bracket-compatible-with-raspberry-pi.html?idd=5]
+Credits to **danjperron** for his low-level I2C driver for RP2040, found at the Raspberry Pi forum (https://forums.raspberrypi.com/viewtopic.php?t=302978&start=50), from which I've derived the one used in this project.
 
 
 <br><br>
 ## Feedback
-If you decide to take on the challenge and build your own MirrorBallBot, I would love to hear about it! Please open an issue, share your build photos, or submit feedback to let me know how your robot turned out.
+If you decide to build your own MirrorBallBot, I would love to hear about it! Please open an issue, share your build photos, or submit feedback to let me know how your robot turned out.
 
 
 <br><br>
