@@ -4,12 +4,12 @@ An open-source ball-balancing robot that sees through a mirror.<br><br>
 MirrorBallBot keeps a ball centred on a circular platform by tilting it with three stepper motors.<br>
 You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.<br>
 MirrorBallBot is fully open-source:
- - extensive instruction manual (~150 pages)
+ - extensive instruction manual (~160 pages)
  - stl and step files
  - code
 
 <br><br>
-## Demo video
+## Demo videos
 https://youtu.be/ORftNl7bZG4<br><br>
 [![Watch the Demo](https://i.ytimg.com/vi/ORftNl7bZG4/maxresdefault.jpg)](https://youtu.be/ORftNl7bZG4)
 
@@ -17,7 +17,9 @@ https://youtu.be/ORftNl7bZG4<br><br>
 https://youtu.be/C2Nf5jWF-SY<br><br>
 [![Watch the Demo](https://i.ytimg.com/vi/C2Nf5jWF-SY/maxresdefault.jpg)](https://youtu.be/C2Nf5jWF-SY)
 
-
+<br><br>
+Fully 3D printable version (smaller footprint):<br>
+![title image](/images/Fully_3D_printable_version_01_700w.jpg) 
 
 <br><br>
 ## Key innovations
@@ -33,6 +35,7 @@ This allows for a larger platform while keeping the robot compact.
 <br><br>
 ## Features
 
+- **Two versions available:** Wooden base or fully 3D-printable.
 - **Touchscreen GUI:** 7" DSI display with full control interface.
 - **Real-Time Video Feed:** Live camera images displayed directly on screen.
 - **Autonomous Auto-Balance:** Keeps the ball centred.
@@ -43,19 +46,19 @@ This allows for a larger platform while keeping the robot compact.
 - **Automatic HSV Calibration:** Instantly adapts to different ball colours and ambient lighting.
 - **Sensorless Homing:** Uses TMC2209 StallGuard, no physical limit switches required.
 - **Active Thermal Management:** PWM controlled cooling fans with automated temperature monitoring.
-- **Two versions available:** Wooden base or fully 3D-printable.
+
 
 
 <br><br>
 ## How It Works
 1. **Detection**: The camera looks at a mirror placed underneath the transparent platform, detects the ball via HSV thresholding, the ball position is retrieved. This flow works at more than 110 FPS.
 2. **Calculation**: The ball position is compared to the target, and via a PID controller the new platform angle is calculated.
-3. **Communication**: The Raspberry Pi 4B sends the information (speed and number of steps) to the three RP2040-Zero, via a custom I2C protocol.
+3. **Communication**: The Raspberry Pi 4 sends the information (speed and number of steps) to the three RP2040-Zero, via a custom I2C protocol.
 4. **Actuation**: The three RP2040-Zero decode the I2C command to speed, direction and number of steps, and load them into the PIO buffer. Finally, the steppers move the platform. The platform actuation works at 17~25Hz.
 
 <br><br>
 ### Architecture Overview
- - **Raspberry Pi 4B:** Vision processing, PID control, GUI, and I2C Master.
+ - **Raspberry Pi 4:** Vision processing, PID control, GUI, and I2C Master.
  - **3x RP2040-Zero:** Motion execution, I2C Slaves, and hardware-precise PIO step generation.
  - **3x TMC2209:** Silent stepper drivers configured for Sensorless homing.
  - **3x NEMA17:** Stepper motors executing the platform tilts.
@@ -68,7 +71,7 @@ This allows for a larger platform while keeping the robot compact.
 ## Hardware Requirements
 | Component | Qty |
 |-----------|-----|
-| Raspberry Pi 4B 2GB (1Gb should suffice) | 1 |
+| Raspberry Pi 4 2GB (1Gb is sufficient) | 1 |
 | RP2040-Zero | 3 |
 | TMC2209 stepper driver | 3 |
 | NEMA17 stepper motor | 3 |
@@ -82,15 +85,15 @@ This allows for a larger platform while keeping the robot compact.
 
 <br><br>
 ## Documentation
-The complete instruction manual is available as a **150+ page PDF file**.<br>
+The complete instruction manual is available as a **160+ page PDF file**.<br>
 It provides exhaustive coverage of:
 - BOM
-- Wooden base or fully 3D printable version selection.
+- Wooden base or fully 3D printable version.
 - 3D printing and acrylic laser cutting.
 - PCB assembly & soldering maps (250+ pads).
 - Detailed step-by-step mechanical assembly (29 steps with photos).
 - Software environment setup and configuration parameters.
-- GUI operation, PID tuning, and troubleshooting/QA<br>
+- GUI operation, PID tuning, and troubleshooting/QA.<br>
 
 Download the How to make instruction manual from [doc/](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/How_to_make_MirrorBallBot.pdf) folder
 
