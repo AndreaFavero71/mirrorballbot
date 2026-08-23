@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260607
+Andrea Favero 20260822
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # BALL BALANCING ROBOT by ANDREA FAVERO
 # ============================================================================
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 from math import sqrt, radians, degrees, cos, sin, gcd
 from gpiozero import OutputDevice, PWMOutputDevice
@@ -1718,7 +1718,10 @@ class BallBalancingSystem:
         # initialize path executor and manager
         self.path_executor = PathExecutor(self, verbose=self.verbose)
         self.path_manager = PathManager(self)
+        self.path_complete_callback = None
+        self.path_stop_event = None
         
+        # time reference for periodical temperature check
         self.last_cup_temp_check = time()
         
         if self.verbose:
@@ -1800,18 +1803,38 @@ class BallBalancingSystem:
     
     
     
+    def _on_path_complete(self, ended_normally=False):
+        """Called when a path completes (ended_normally or stopped)."""
+        if self.verbose:
+            print(f"Path completed - ended_normally: {ended_normally}")
+        
+        # notify the GUI through the callback
+        if self.path_complete_callback:
+            self.path_complete_callback(ended_normally=ended_normally)
     
-    def square_path(self, side_mm: int, repeats=1, 
-                    tolerance_mm: int = 40, settle_time_ms: int = 400):
+    
+    
+    def set_path_completion_callback(self, callback):
+        """Set callback for path completion events."""
+        self.path_complete_callback = callback
+    
+    
+    
+    def square_path(self, side_mm: int, repeats=1, tolerance_mm: int = 40,
+                    settle_time_ms: int = 400, stop_event: threading.Event = None):
+        
         """Execute square path."""
-        self.path_manager.start_path(
-            self.path_executor.square_path,
-            side_mm, repeats, tolerance_mm, settle_time_ms
-        )
+        def run(stop_event=None, completion_callback=None):
+            self.path_executor.square_path(
+                side_mm, repeats, tolerance_mm, settle_time_ms,
+                stop_event=stop_event,
+                completion_callback=completion_callback
+            )
+        self.path_manager.start_path(run, stop_event=stop_event)
     
     
     def circle_path(self, radius_mm: int, repeats=1, direction='cw', 
-                    speed_factor: float = 1.5):
+                    speed_factor: float = 1.5, stop_event: threading.Event = None):
         """
         Execute a circular path.
         
@@ -1821,45 +1844,65 @@ class BallBalancingSystem:
             direction: 'cw' or 'ccw'
             speed_factor: Speed multiplier (0.5 = half speed, 2.0 = double speed)
         """
-        if self.path_executor:
-            self.path_executor.circle_path(radius_mm, repeats, direction, speed_factor)
-        else:
-            print("Error: Path executor not initialized")
+        def run(stop_event=None, completion_callback=None):
+            self.path_executor.circle_path(
+                radius_mm, repeats, direction, speed_factor,
+                stop_event=stop_event,
+                completion_callback=completion_callback
+            )
+        self.path_manager.start_path(run, stop_event=stop_event)
     
     
     def infinity_path(self, size_mm: int, speed_factor: float = 1.0, 
-                      repeats: int = 1, stretch: float = 1.5):
+                      repeats: int = 1, stretch: float = 1.5,
+                      stop_event: threading.Event = None):
         """Execute infinity path."""
-        self.path_manager.start_path(
-            self.path_executor.infinity_path,
-            size_mm, speed_factor, repeats, stretch
-        )
+        def run(stop_event=None, completion_callback=None):
+            self.path_executor.infinity_path(
+                size_mm, speed_factor, repeats, stretch,
+                stop_event=stop_event,
+                completion_callback=completion_callback
+            )
+        self.path_manager.start_path(run, stop_event=stop_event)
+    
     
     def triangle_path(self, side_mm: int, orientation: str = 'point_up', repeats: int = 1,
-                      tolerance_mm: int = 40, settle_time_ms: int = 400):
+                      tolerance_mm: int = 40, settle_time_ms: int = 400,
+                      stop_event: threading.Event = None):
         """Execute triangle path."""
-        self.path_manager.start_path(
-            self.path_executor.triangle_path,
-            side_mm, orientation, repeats, tolerance_mm, settle_time_ms
-        )
+        def run(stop_event=None, completion_callback=None):
+            self.path_executor.triangle_path(
+                side_mm, orientation, repeats, tolerance_mm, settle_time_ms,
+                stop_event=stop_event,
+                completion_callback=completion_callback
+            )
+        self.path_manager.start_path(run, stop_event=stop_event)
+    
     
     def line_path(self, length_mm: int, angle_deg: int, repeats: int = 1,
-                  tolerance_mm: int = 40, settle_time_ms: int = 400):
+                  tolerance_mm: int = 40, settle_time_ms: int = 400,
+                  stop_event: threading.Event = None):
         """Execute line path."""
-        self.path_manager.start_path(
-            self.path_executor.line_path,
-            length_mm, angle_deg, repeats, tolerance_mm, settle_time_ms
-        )
+        def run(stop_event=None, completion_callback=None):
+            self.path_executor.line_path(
+                length_mm, angle_deg, repeats, tolerance_mm, settle_time_ms,
+                stop_event=stop_event,
+                completion_callback=completion_callback
+            )
+        self.path_manager.start_path(run, stop_event=stop_event)
     
     
     def free_path_continuous(self):
         """Start continuous free path mode (follows finger)."""
-        def run(stop_event=None):  # add stop_event parameter
+        def run(stop_event=None, completion_callback=None):
             self.path_executor.free_path_continuous(
                 stop_event=self.path_manager.stop_event
             )
+            if completion_callback:
+                completion_callback(ended_normally=True)
         self.path_manager.start_path(run)
 
+    
     
     def free_path_start_recording(self):
         """Start recording a free path."""
@@ -1867,14 +1910,19 @@ class BallBalancingSystem:
         self._recorded_points = []
         self._recording_stop_event = threading.Event()
         
-        def run(stop_event=None):  # add stop_event parameter
+        def run(stop_event=None, completion_callback=None):
             points = self.path_executor.free_path_record(
                 stop_event=self._recording_stop_event
             )
             self._on_recording_complete(points)
+            
+            # call completion callback if provided
+            if completion_callback:
+                completion_callback(ended_normally=True)
         
         self.path_manager.start_path(run)
 
+    
     
     def free_path_stop_recording(self):
         """Stop recording and return points."""
@@ -1883,6 +1931,7 @@ class BallBalancingSystem:
             # wait a moment for recording to finish
             sleep(0.2)
 
+    
     
     def _on_recording_complete(self, points):
         """Called when recording completes."""
@@ -1896,8 +1945,9 @@ class BallBalancingSystem:
         return getattr(self, '_recorded_points', [])
 
     
+    
     def free_path_playback(self, points, completion_callback=None):
-        def run(stop_event=None):
+        def run(stop_event=None, completion_callback=None):
             # clear the stop_event before starting playback
             if hasattr(self, 'path_manager'):
                 self.path_manager.stop_event.clear()
@@ -1906,7 +1956,7 @@ class BallBalancingSystem:
                 stop_event=self.path_manager.stop_event,
                 completion_callback=completion_callback
             )
-        self.path_manager.start_path(run)
+        self.path_manager.start_path(run, completion_callback=completion_callback)
     
     
     
@@ -2178,20 +2228,29 @@ class BallBalancingSystem:
 
 
 class PathManager:
-    """Simple path manager to handle path interruptions."""
+    """Path manager"""
     
     def __init__(self, robot):
         self.robot = robot
         self.current_path_thread = None
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
+        self.is_path_running = False
+        self.path_completion_callback = None
     
     
     def start_path(self, path_func, *args, **kwargs):
         """Start a path, stopping any current one first."""
         with self.lock:
-            self._stop_current()
-            self.stop_event.clear()
+            if path_func != 'free':
+                self._stop_current()
+            
+            # use the stop_event from kwargs or create a new one
+            if 'stop_event' in kwargs:
+                self.stop_event = kwargs['stop_event']
+            else:
+                self.stop_event = threading.Event()
+                kwargs['stop_event'] = self.stop_event
             
             self.current_path_thread = threading.Thread(
                 target=self._run_path,
@@ -2200,18 +2259,38 @@ class PathManager:
                 daemon=True
             )
             self.current_path_thread.start()
-    
-    
+        
+        
     def _stop_current(self):
         """Stop the currently running path."""
         if self.current_path_thread and self.current_path_thread.is_alive():
-            self.stop_event.set()
-            self.current_path_thread.join(timeout=2.0)
+            if self.stop_event:
+                self.stop_event.set()
+            self.current_path_thread.join(timeout=1.0) #(timeout=2.0)
+            self.current_path_thread = None
+            self.is_path_running = False
+    
     
     
     def _run_path(self, path_func, *args, **kwargs):
         """Run path with stop event."""
-        path_func(*args, stop_event=self.stop_event, **kwargs)
+        # wrapper callback that updates the state
+        original_callback = kwargs.get('completion_callback')
+        
+        def wrapped_callback(ended_normally=False):
+            self.is_path_running = False
+            if original_callback:
+                original_callback(ended_normally=ended_normally)
+            
+            # notify the system through a separate mechanism
+            if hasattr(self.robot, '_on_path_complete'):
+                self.robot._on_path_complete(ended_normally=ended_normally)
+        
+        # callback with wrapped version
+        kwargs['completion_callback'] = wrapped_callback
+        
+        path_func(*args, **kwargs)
+    
     
     
     def stop_current_path(self):

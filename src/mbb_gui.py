@@ -2,7 +2,7 @@
 # coding: utf-8
 
 """
-Andrea Favero 20260607
+Andrea Favero 20260822
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # gui for mirrorballbot by andrea favero
 # ============================================================================
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 
 import datetime as dt
@@ -419,6 +419,9 @@ class BallBalancingGUI(tk.Tk):
         self.is_closing = False
         self.current_path_page = None
         self.is_fullscreen = False
+        
+        # set path completion callback
+        self.system.set_path_completion_callback(self._on_path_complete)
 
         # store page references
         self.main_page = None
@@ -687,11 +690,33 @@ class BallBalancingGUI(tk.Tk):
             
         # when leaving PATHS page, stop any running path
         if self.current_page == "paths" and page_name != "paths":
+            
+            # stop the running path
+            self.stop_current_path()
+            
+            # clear visualization
+            if hasattr(self.system, 'camera'):
+                self.system.camera.clear_trajectory()
+                self.system.camera.clear_target()
+            
+            # reset target to center
+            self.after(100, self.center_target)
+            
+            # destroy the path config page if it exists
             if self.current_path_page:
                 self.current_path_page.destroy()
                 self.current_path_page = None
-            self.stop_current_path()
-            self.after(100, self.center_target())
+        
+        # case of moving from a specific path page to go back to the paths selection page
+        elif self.current_page == "paths" and page_name == "paths":
+            if self.current_path_page is not None:
+                self.stop_current_path()
+                if hasattr(self.system, 'camera'):
+                    self.system.camera.clear_trajectory()
+                    self.system.camera.clear_target()
+                self.after(100, self.center_target)
+                self.current_path_page.destroy()
+                self.current_path_page = None
         
         if self.current_page == "motor" and page_name != "motor":
             self.after(100, self.center_target)
@@ -1966,46 +1991,85 @@ class BallBalancingGUI(tk.Tk):
                 self.after(0, lambda: button.config(state=tk.NORMAL))
         
         threading.Thread(target=run, daemon=True).start()
+    
+    
+    
     # ==================== PATH CONTROL FUNCTIONS ====================
     
-    def start_square_path(self, side, repeats):
+    def start_square_path(self, side, repeats, on_complete=None):
         def run():
-            self.system.square_path(side_mm=side, repeats=repeats)
+            try:
+                self.system.path_stop_event = threading.Event()
+                self.system.path_stop_event.clear()
+                self.system.square_path(side_mm=side, repeats=repeats,
+                                        stop_event=self.system.path_stop_event)
+            
+            except Exception as e:
+                print(f"Square path error: {e}")
+        
         self._ensure_auto_balance()
         threading.Thread(target=run, daemon=True).start()
     
     
     
-    def start_circle_path(self, radius, repeats, direction, speed_factor=1.5):
+    def start_circle_path(self, radius, repeats, direction, speed_factor=1.5, on_complete=None):
         def run():
-            self.system.circle_path(radius_mm=radius, repeats=repeats, 
-                                    direction=direction, speed_factor=speed_factor)
+            try:
+                self.system.path_stop_event = threading.Event()
+                self.system.circle_path(radius_mm=radius, repeats=repeats,
+                                        direction=direction, speed_factor=speed_factor,
+                                        stop_event=self.system.path_stop_event)
+            
+            except Exception as e:
+                print(f"Circle path error: {e}")
+        
         self._ensure_auto_balance()
         threading.Thread(target=run, daemon=True).start()
     
     
     
-    def start_infinity_path(self, size, speed, repeats):
+    def start_infinity_path(self, size, speed, repeats, on_complete=None):
         def run():
-            self.system.infinity_path(size_mm=size, speed_factor=speed, repeats=repeats)
+            try:
+                self.system.path_stop_event = threading.Event()
+                self.system.infinity_path(size_mm=size, speed_factor=speed, repeats=repeats,
+                                          stop_event=self.system.path_stop_event)
+            
+            except Exception as e:
+                print(f"Infinity path error: {e}")
+        
         self._ensure_auto_balance()
         threading.Thread(target=run, daemon=True).start()
     
     
     
-    def start_triangle_path(self, side, orientation, repeats):
+    def start_triangle_path(self, side, orientation, repeats, on_complete=None):
         def run():
-            self.system.triangle_path(side_mm=side, orientation=orientation, repeats=repeats,
+            try:
+                self.system.path_stop_event = threading.Event()
+                self.system.triangle_path(side_mm=side, orientation=orientation, repeats=repeats,
+                                          stop_event=self.system.path_stop_event,
+                                          tolerance_mm=40, settle_time_ms=400)
+            
+            except Exception as e:
+                print(f"Triangle path error: {e}")
+        
+        self._ensure_auto_balance()
+        threading.Thread(target=run, daemon=True).start()
+    
+    
+    
+    def start_line_path(self, length, angle, repeats, on_complete=None):
+        def run():
+            try:
+                self.system.path_stop_event = threading.Event()
+                self.system.line_path(length_mm=length, angle_deg=angle, repeats=repeats,
+                                      stop_event=self.system.path_stop_event,
                                       tolerance_mm=40, settle_time_ms=400)
-        self._ensure_auto_balance()
-        threading.Thread(target=run, daemon=True).start()
-    
-    
-    
-    def start_line_path(self, length, angle, repeats):
-        def run():
-            self.system.line_path(length_mm=length, angle_deg=angle, repeats=repeats,
-                                  tolerance_mm=40, settle_time_ms=400)
+            
+            except Exception as e:
+                print(f"Line path error: {e}")
+        
         self._ensure_auto_balance()
         threading.Thread(target=run, daemon=True).start()
     
@@ -2026,19 +2090,58 @@ class BallBalancingGUI(tk.Tk):
     
     
     
+    def _on_path_complete(self, ended_normally=False):
+        """Called when a path completes."""
+        if self.verbose:
+            print(f"GUI: Path completed - ended_normally: {ended_normally}")
+        
+        # use after_idle instead of after(0) to ensure UI is in a stable state
+        self.after_idle(lambda: self._update_path_state(ended_normally))
+    
+    
+    
+    def _update_path_state(self, ended_normally=False):
+        """Update GUI state when path completes."""
+        # check if the path page still exists before trying to update it
+        if self.current_path_page and hasattr(self.current_path_page, 'set_running'):
+            try:
+                # check if the frame still exists
+                if hasattr(self.current_path_page, 'frame') and self.current_path_page.frame:
+                    self.current_path_page.set_running(False)
+                else:
+                    # page was destroyed, clear reference
+                    self.current_path_page = None
+            except (tk.TclError, AttributeError):
+                # widget no longer exists
+                self.current_path_page = None
+        
+        # update status
+        if ended_normally:
+            self.system_status.config(text="System: PATH COMPLETED", fg=self.colors['success'])
+        else:
+            self.system_status.config(text="System: PATH STOPPED", fg=self.colors['warning'])
+    
+    
+    
     def stop_current_path(self):
         """Stop the currently running path."""
-        if hasattr(self.system, 'stop_current_path') or \
-           (hasattr(self, 'auto_balance_var') and not self.auto_balance_var.get()):
-            
+        if hasattr(self.system, 'stop_current_path'):
             self.system.stop_current_path()
+            
             # force clear trajectory to show quadrants
             if hasattr(self.system, 'camera'):
                 self.system.camera.clear_trajectory()
                 self.system.camera.clear_target()
-                # explicitly set trajectory_type to None
                 self.system.camera.trajectory_type = None
-        self.system_status.config(text="System: PATH STOPPED", fg=self.colors['warning'])
+            
+            # reset controller target to center
+            self.system.controller.target_x = 0
+            self.system.controller.target_y = 0
+            
+            # reset PID accumulators
+            self.system.controller.reset_pid()
+        
+        self.system_status.config(text="System: STOPPING PATH...", fg=self.colors['warning'])
     
     
     
@@ -2655,20 +2758,25 @@ class BallBalancingGUI(tk.Tk):
         if self.is_closing:
             return
         
-        self.is_closing = True
-        
         try:
             if self.winfo_exists():
-                if messagebox.askokcancel("Quit", "Do you want to quit?"):
-                    self.video_running = False
-                    self.stop_auto_balance()
-                    self.system.cleanup()
-                    self.destroy()
-                else:
-                    self.is_closing = False
+                # show confirmation dialog FIRST before doing anything else
+                if not messagebox.askokcancel("Quit", "Do you want to quit?"):
+                    # user cancelled, return without changing any state
+                    return
+                # user confirmed, proceed with the closing
+                self.is_closing = True
+                self.video_running = False
+                self.stop_auto_balance()
+                self.system.cleanup()
+                self.destroy()
+
         except Exception as e:
             print(f"Error during closing: {e}")
+            
+            # force cleanup on error
             try:
+                self.is_closing = True
                 self.video_running = False
                 if hasattr(self, 'system'):
                     if hasattr(self.system, 'controller') and self.system.controller.auto_balance:
@@ -2676,6 +2784,7 @@ class BallBalancingGUI(tk.Tk):
                     self.system.cleanup()
             except:
                 pass
+            
             self.destroy()
 
 
@@ -2695,6 +2804,10 @@ class PathConfigPage:
         self.back_callback = back_callback
         self.frame = None
         self.repeats = None
+        self.start_btn = None
+        self.stop_btn = None
+        self.is_running = False
+        self.manual_stop = False
     
     
     
@@ -2731,7 +2844,7 @@ class PathConfigPage:
     
     
     def add_repeats_and_start(self, start_command):
-        """Add repeats spinbox and start button side by side using grid."""
+        """Add repeats spinbox and start/stop button."""
         # container for bottom section
         bottom_frame = tk.Frame(self.content, bg=self.gui.colors['bg'])
         bottom_frame.grid(row=99, column=0, sticky="ew", pady=15)
@@ -2751,25 +2864,80 @@ class PathConfigPage:
         title_label.pack(anchor='w')
         
         self.repeats = tk.IntVar(value=3)
-        spinbox = tk.Spinbox(repeats_frame, from_=1, to=100, textvariable=self.repeats,
-                            width=5, font=('Arial', 28), justify='left')
+        spinbox = tk.Spinbox(repeats_frame, from_=1, to=999, wrap=True,
+                             textvariable=self.repeats, width=5,
+                             font=('Arial', 28), justify='left')
         spinbox.pack(pady=10)
         
-        # start button (right aligned)
-        start_btn = tk.Button(bottom_frame, text=f"START\n{self.path_name.upper()}\nPATH",
-                             bg=self.gui.colors['accent'], fg='white',
-                             font=('Arial', 15, 'bold'), height=3,
-                             command=start_command)
-        start_btn.grid(row=0, column=2, sticky="e")
-        self.gui.remove_highlight(start_btn)
+        # create both START and STOP buttons, initially show START
+        button_frame = tk.Frame(bottom_frame, bg=self.gui.colors['bg'])
+        button_frame.grid(row=0, column=2, sticky="e")
+        
+        # Use grid instead of pack
+        self.start_btn = tk.Button(button_frame, text=f"START\n{self.path_name.upper()}\nPATH",
+                                   bg=self.gui.colors['accent'], fg='white',
+                                   font=('Arial', 15, 'bold'), height=3,
+                                   command=start_command)
+        self.start_btn.grid(row=0, column=0, sticky="ew")
+        self.gui.remove_highlight(self.start_btn)
+        
+        self.stop_btn = tk.Button(button_frame, text="  STOP  \n  PATH  ",
+                                  bg=self.gui.colors['error'], fg='white',
+                                  font=('Arial', 15, 'bold'), height=3,
+                                  command=self.stop_path)
+        self.stop_btn.grid(row=0, column=0, sticky="ew")
+        self.stop_btn.grid_remove()
+        self.gui.remove_highlight(self.stop_btn)
+    
+    
+    
+    def set_running(self, running):
+        """Set the running state and update buttons."""
+        self.is_running = running
+        try:
+            if running:
+                if self.start_btn and self.start_btn.winfo_exists():
+                    self.start_btn.grid_remove()
+                if self.stop_btn and self.stop_btn.winfo_exists():
+                    self.stop_btn.grid()
+            else:
+                if self.stop_btn and self.stop_btn.winfo_exists():
+                    self.stop_btn.grid_remove()
+                if self.start_btn and self.start_btn.winfo_exists():
+                    self.start_btn.grid()
+            
+            # force redraw if widgets exist
+            if self.stop_btn and self.stop_btn.winfo_exists():
+                self.stop_btn.update_idletasks()
+            if self.start_btn and self.start_btn.winfo_exists():
+                self.start_btn.update_idletasks()
+            self.gui.update_idletasks()
+        except (tk.TclError, AttributeError):
+            # widgets have been destroyed, ignore
+            pass
+    
+    
+    
+    def stop_path(self):
+        """Stop the currently running path."""
+        if self.is_running:
+            # call the GUI's stop method
+            self.gui.stop_current_path()
     
     
     
     def destroy(self):
         """Clean up the path configuration page."""
+        # stop any running path before destroying
+        if self.is_running:
+            self.gui.stop_current_path()
+            self.set_running(False)
         if self.frame:
             self.frame.destroy()
             self.frame = None
+        # clear widget references
+        self.start_btn = None
+        self.stop_btn = None
         self.repeats = None
 
 
@@ -2804,7 +2972,16 @@ class SquarePathPage(PathConfigPage):
     
     
     def start_path(self):
-        self.gui.start_square_path(self.side.get(), self.repeats.get())
+        # change button to STOP
+        self.set_running(True)
+
+        # start the path
+        self.gui.after(50, lambda: self.gui.start_square_path(self.side.get(), self.repeats.get()))
+    
+    
+    
+    def _on_complete(self, ended_normally=False):
+        self.set_running(False)
 
 
 
@@ -2911,11 +3088,21 @@ class CirclePathPage(PathConfigPage):
         row += 1
     
     
+    
     def start_path(self):
-        # Use radius, direction, and the new speed factor
-        # Speed factor now affects peripheral speed calculation
-        self.gui.start_circle_path(self.radius.get(), self.repeats.get(), 
-                                    self.direction.get(), self.speed.get())
+        # change button to STOP
+        self.set_running(True)
+        
+        # use radius, direction, and the new speed factor
+        # speed factor now affects peripheral speed calculation
+        self.gui.after(50, lambda: self.gui.start_circle_path(self.radius.get(), self.repeats.get(),
+                                                              self.direction.get(), self.speed.get()))
+    
+    
+    
+    def _on_complete(self, ended_normally=False):
+        self.set_running(False)
+
 
 
 
@@ -2954,9 +3141,20 @@ class InfinityPathPage(PathConfigPage):
         # add repeats and start button
         self.add_repeats_and_start(self.start_path)
     
-    
+ 
+ 
     def start_path(self):
-        self.gui.start_infinity_path(self.size.get(), self.speed.get(), self.repeats.get())
+        # change button to STOP
+        self.set_running(True)
+        
+        # start the path
+        self.gui.after(50, lambda: self.gui.start_infinity_path(self.size.get(), self.speed.get(),
+                                                                self.repeats.get()))
+    
+    
+    
+    def _on_complete(self, ended_normally=False):
+        self.set_running(False)
 
 
 
@@ -3030,8 +3228,19 @@ class TrianglePathPage(PathConfigPage):
         self.add_repeats_and_start(self.start_path)
     
     
+    
     def start_path(self):
-        self.gui.start_triangle_path(self.side.get(), self.orientation.get(), self.repeats.get())
+        # change button to STOP
+        self.set_running(True)
+        
+        # start the path
+        self.gui.after(50, lambda: self.gui.start_triangle_path(self.side.get(), self.orientation.get(),
+                                                                self.repeats.get()))
+    
+    
+    
+    def _on_complete(self, ended_normally=False):
+        self.set_running(False)
 
 
 
@@ -3072,8 +3281,19 @@ class LinePathPage(PathConfigPage):
         self.add_repeats_and_start(self.start_path)
     
     
+    
     def start_path(self):
-        self.gui.start_line_path(self.length.get(), self.angle.get(), self.repeats.get())
+        # change button to STOP
+        self.set_running(True)
+        
+        # start the path
+        self.gui.after(50, lambda: self.gui.start_line_path(self.length.get(), self.angle.get(),
+                                                            self.repeats.get()))
+    
+    
+    
+    def _on_complete(self, ended_normally=False):
+        self.set_running(False)
 
 
 
@@ -3090,6 +3310,7 @@ class FreePathPage(PathConfigPage):
         self.recording_update_id = None
         self.last_point_count = 0
         self.TIMEOUT_MS = 2000
+        self._playing = False
     
     
     def create(self):
@@ -3166,15 +3387,8 @@ class FreePathPage(PathConfigPage):
     def start_continuous_mode(self):
         """Start continuous mode automatically, enabling auto-balance if needed."""
         if not self.tracking_active:
-            # Enable auto-balance if needed
+            # enable auto-balance if needed
             self.gui._ensure_auto_balance()
-                
-            # HERE
-#             if not self.gui.auto_balance_var.get():
-#                 self.gui.auto_balance_var.set(True)
-#                 self.gui.toggle_auto_balance()
-#                 sleep(0.5)
-            
             self.tracking_active = True
             self.gui.update_target(0, 0)
             self.gui.system.free_path_continuous()
@@ -3203,7 +3417,7 @@ class FreePathPage(PathConfigPage):
             # stop continuous mode temporarily
             if self.tracking_active:
                 self.tracking_active = False
-                self.gui.stop_current_path()
+#                 self.gui.stop_current_path()
             
             # start recording in robot
             self.gui.system.free_path_start_recording()
@@ -3325,28 +3539,81 @@ class FreePathPage(PathConfigPage):
     
     
     def play_recorded_path(self):
+        if self._playing:
+            # HERE
+            print("Playback already in progress, ignoring")
+            # HERE
+            
+            return
+        
         if self.recorded_path:
+            self._playing = True
+            if self.play_btn and self.play_btn.winfo_exists():
+                self.play_btn.config(state=tk.DISABLED)
+                self.gui.update_idletasks()
+            
             if self.tracking_active:
                 self.tracking_active = False
-                self.gui.stop_current_path()
+#                 self.gui.stop_current_path()
             self.status_label.config(text="Playing recorded path...")
-            self.gui.system.free_path_playback(self.recorded_path, completion_callback=self._on_playback_complete)
+            self.gui.system.free_path_playback(self.recorded_path,
+                                               completion_callback=self._on_playback_complete)
     
     
     
-    def _on_playback_complete(self):
+    def _on_playback_complete(self, ended_normally=False):
         """Called when playback completes."""
-        if self.verbose:
-            print("Playback complete callback triggered")
+        # reset playing flag
+        self._playing = False
+        
         def update_ui():
             try:
-                if self.status_label and self.status_label.winfo_exists():
-                    self.status_label.config(text="Playback complete\nRestarting continuous mode")
-                    self.gui.after(100, self.start_continuous_mode)
-                    self.gui.after(2000, self._revert_status_message)
-            except (tk.TclError, AttributeError, RuntimeError):
-                print("Widget no longer exists, skipping UI update")
-        self.gui.after(0, update_ui)
+                # check if widgets still exist
+                if not self.status_label or not self.status_label.winfo_exists():
+                    print("Status label no longer exists")
+                    return
+                
+                # reset state
+                self.tracking_active = False
+                self.recording = False
+                
+                # re-enable play button
+                if self.play_btn and self.play_btn.winfo_exists():
+                    self.play_btn.config(state=tk.NORMAL)
+                    print("Play button re-enabled")
+                
+                # update status label
+                self.status_label.config(text="Playback complete\nTouch the screen to move the ball")
+                
+                # stop any remaining path
+                self.gui.stop_current_path()
+                
+                # clear visualization
+                self.gui.system.camera.clear_trajectory()
+                self.gui.system.camera.clear_target()
+                
+                # reset target to center
+                self.gui.update_target(0, 0)
+                
+                # force GUI refresh
+                self.gui.update_idletasks()
+                
+                # restart continuous mode with delay
+                self.gui.after(300, self.start_continuous_mode)
+                
+            except Exception as e:
+                print(f"UI update error in _on_playback_complete: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                self._playing = False
+        
+        if self.play_btn and self.play_btn.winfo_exists():
+            self.play_btn.config(state=tk.NORMAL)
+            self.gui.update_idletasks()
+        
+        # schedule on main thread with a longer delay
+        self.gui.after(100, update_ui)
     
     
     

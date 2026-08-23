@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#####################   Andrea Favero,  24 May 2026  ###################################
+#####################   Andrea Favero,  23 August 2026  ################################
 #
 #  MirrorBallBot - System Configuration Script
 #
@@ -45,6 +45,38 @@ echo "User: $USERNAME"
 echo "Home directory: $HOME_DIR"
 echo "Repository root: $BASE_DIR"
 
+
+
+# ============================================================================
+# Configure swap space for stability
+# ============================================================================
+
+echo ""
+echo "→ Configuring swap space..."
+
+# Check current swap size
+CURRENT_SWAP=$(swapon --show=Size --bytes | tail -n1 2>/dev/null | numfmt --to=iec)
+if [ -z "$CURRENT_SWAP" ] || [ "$CURRENT_SWAP" = "0B" ]; then
+    echo "  No swap found - creating 2GB swap file..."
+    
+    # Create 2GB swap file
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    
+    # Make permanent
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    
+    echo ""
+    echo "→ Swap space created (2GB)"
+else
+    echo ""
+    echo "→ Swap space already exists: $CURRENT_SWAP"
+fi
+
+
+
 # ============================================================================
 # Install Python packages
 # ============================================================================
@@ -53,13 +85,91 @@ echo ""
 echo "→ Installing Python libraries..."
 sudo apt install -y \
     python3-numpy \
-    python3-opencv \
     python3-picamera2 \
     python3-gpiozero \
     python3-smbus2 \
     python3-pil \
     python3-pil.imagetk \
     python3-tk
+
+
+
+# ============================================================================
+# OpenCV Installation with Thorough Cleanup
+# ============================================================================
+
+echo ""
+echo "→ Installing OpenCV with complete cleanup..."
+
+# Function to check if OpenCV works
+check_opencv() {
+    python3 -c "import cv2; print(f'OpenCV version: {cv2.__version__}')" 2>/dev/null
+}
+
+# === PHASE 1: AGGRESSIVE CLEANUP ===
+# Remove ALL apt OpenCV packages (including dependencies)
+echo ""
+echo "→ Removing apt packages..."
+sudo apt remove -y python3-opencv python3-opencv-apps libopencv* 2>/dev/null || true
+sudo apt autoremove -y 2>/dev/null || true
+sudo apt autoclean 2>/dev/null || true
+
+# Remove ALL pip OpenCV packages (try multiple package names)
+echo ""
+echo "→ Removing pip packages..."
+pip3 uninstall -y opencv-python opencv-contrib-python opencv-python-headless 2>/dev/null || true
+pip3 uninstall -y opencv opencv-contrib opencv-headless 2>/dev/null || true
+
+# Also check pip3 for user installations
+pip3 uninstall -y --user opencv-python opencv-contrib-python 2>/dev/null || true
+
+# Find and remove any leftover OpenCV files
+echo ""
+echo "→ Cleaning up leftover files..."
+sudo find /usr/local/lib -name "*opencv*" -type d -exec rm -rf {} + 2>/dev/null || true
+sudo find /usr/lib -name "*opencv*" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Clean pip cache
+echo ""
+echo "→ Cleaning pip cache..."
+pip3 cache purge 2>/dev/null || true
+
+# Clean apt cache completely
+echo ""
+echo "→ Cleaning apt cache..."
+sudo apt clean
+sudo apt update
+
+echo ""
+echo "→ Cleanup complete"
+
+# === PHASE 2: FRESH INSTALLATION ===
+echo ""
+# Install from apt (preferred method for Pi)
+echo "→ Installing OpenCV from apt repository..."
+sudo apt install -y python3-opencv
+
+# === PHASE 3: VERIFICATION ===
+if check_opencv > /dev/null; then
+    OPENCV_VER=$(check_opencv)
+    echo ""
+    echo "OpenCV successfully installed: $OPENCV_VER"
+    
+    # Run a quick test to ensure it's fully functional
+    echo ""
+    echo "Running functionality test..."
+    if python3 -c "import cv2; img = cv2.imread('/dev/null'); print('OpenCV functional')" 2>/dev/null; then
+        echo ""
+        echo "OpenCV is fully functional"
+    else
+        echo ""
+        echo"OpenCV installed but may have compatibility issues"
+    fi
+else
+    echo ""
+    echo "Apt installation failed..."
+fi
+
 
 
 # ============================================================================
