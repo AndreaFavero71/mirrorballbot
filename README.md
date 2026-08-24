@@ -102,7 +102,7 @@ Download the How to make instruction manual from [doc/](https://github.com/Andre
 ## Quick Start (for experienced makers)
 
 1. Decide if wooden base or fully 3D-printed version. If wooden, CNC or route the base.
-2. 3D print all parts (no supports except Power_in case if wooden base, or Mirror_support if fully 3D-priteable version).
+2. 3D print all parts (no supports except Power_in case of wooden base).
 3. Laser cut acrylic (translucent plate + mirror).
 4. Assemble the MirrorBallBot PCB (250+ solder pads).
 5. Flash each RP2040-Zero with **MicroPython v1.24 Pimoroni Tiny2040** uf2 firmware (https://micropython.org/download/PIMORONI_TINY2040/).
