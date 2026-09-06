@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260822
+Andrea Favero 20260906
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # BALL BALANCING ROBOT by ANDREA FAVERO
 # ============================================================================
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 from math import sqrt, radians, degrees, cos, sin, gcd
 from gpiozero import OutputDevice, PWMOutputDevice
@@ -70,7 +70,7 @@ import mbb_camera
 class MotorController:
     """Handles all I2C communication with stepper motors."""
     
-    # GPIO pins
+# GPIO pins:
 #     GPIO_ENABLE_PIN =  4
 #     GPIO_MOT_A      = 18
 #     GPIO_MOT_B      = 20
@@ -321,7 +321,7 @@ class MotorController:
             return response
         except Exception as e:
             print(f"I2C read error motor {motor}: {e}")
-            return self.I2C_RESPONSE_CHECKSUM_ERROR  # Return checksum error on exception
+            return self.I2C_RESPONSE_CHECKSUM_ERROR  # return checksum error on exception
     
     
     def sync_motors(self, motors: str):
@@ -524,7 +524,7 @@ class MotorController:
             # still busy, wait and retry
             sleep(0.1)
         
-        # timeout - still busy
+        # timeout, still busy
         if busy_motors:
             return True, f"BUSY: motors {', '.join(busy_motors)}", busy_motors
         else:
@@ -804,9 +804,6 @@ class BalanceController:
         denominator = 3600
 
         g = gcd(numerator, denominator)
-        
-#         self.steps_scaling_numerator = num // g
-#         self.steps_scaling_denominator = den // g
         
         return numerator//g, denominator//g
     
@@ -1382,8 +1379,6 @@ class BalanceController:
                     interval_s=0.05
                     )
             
-#             sleep(0.1)
-            
             # wait for retraction to complete (RETRACT bit clears)
             for motor in self.mc.motors:
                 success, status = self.mc.wait_for_status(
@@ -1393,9 +1388,6 @@ class BalanceController:
                     timeout_s=1,
                     interval_s=0.05
                     )
-            
-            
-#             sleep(0.05)
             
             # step 6: monitor homing search phase
             for motor in self.mc.motors:
@@ -1624,7 +1616,7 @@ class BallBalancingSystem:
     
     
     def __init__(self, gui_mode=False, verbose=False, auto_calibrate=True,
-                 display_manager=None, settings_mgr=None):
+                 display_manager=None, settings_mgr=None, defer_platform_init=False):
         
         """
         Initialize the complete ball balancing system.
@@ -1635,6 +1627,7 @@ class BallBalancingSystem:
             auto_calibrate:  If True, run auto-calibration at startup
             display_manager: Optional DisplayManager instance for window handling
             settings_mgr:    Optional SettingsManager instance (created if None)
+            defer_platform_init: If True, don't initialize platform (for GUI startup)
         """
         
         print(f"\nmbb_robot.py  version: {__version__}\n")
@@ -1708,8 +1701,17 @@ class BallBalancingSystem:
         # initialize the stepper current
         self._initialize_motor_current()
         
-        # initialize platform
-        self._initialize_platform()
+        # initialize the platform
+        if not defer_platform_init:
+            if self.verbose:
+                print("\nInitializing platform...")
+            self._initialize_platform()
+        else:
+            if self.verbose:
+                print("\nPlatform initialization deferred (will be called by GUI)")
+            # set initial state for GUI
+            self.controller.at_home = False
+            self.controller.at_balance = False
 
         # auto-balance thread control
         self.auto_balance_thread = None
@@ -2066,8 +2068,8 @@ class BallBalancingSystem:
     def balance_platform(self):
         """Move platform to balance position (level)."""
         
-        # HERE
-        print(f"DEBUG: balance_platform called, at_balance={self.controller.at_balance}")
+        if self.verbose:
+            print(f"DEBUG: balance_platform called, at_balance={self.controller.at_balance}")
         
         # if already in progress, just return
         if hasattr(self, '_balancing_in_progress') and self._balancing_in_progress:
@@ -2497,7 +2499,7 @@ def main(verbose = False):
     
 
 if __name__ == "__main__":
-    verbose = False  # Set to True for debug, when standalone testing
+    verbose = False  # set to True for debug, when standalone testing
     main(verbose = verbose)
     
     

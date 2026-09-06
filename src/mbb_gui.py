@@ -2,7 +2,7 @@
 # coding: utf-8
 
 """
-Andrea Favero 20260822
+Andrea Favero 20260906
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -43,7 +43,7 @@ SOFTWARE.
 # gui for mirrorballbot by andrea favero
 # ============================================================================
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 import datetime as dt
@@ -357,9 +357,7 @@ class BallBalancingGUI(tk.Tk):
         
         self.title("MirrorBallBot Control v" + __version__)
         
-        # verbose mode
         self.verbose = verbose
-        
         if self.verbose:
             print(f"\nmbb_gui.py VERSION:  {__version__}\n")
         
@@ -375,26 +373,12 @@ class BallBalancingGUI(tk.Tk):
             'info_bar': '#1e1e1e'
         }
         
-        # configure grid - 60/40 split
         self.grid_columnconfigure(0, weight=60, uniform='panel')
         self.grid_columnconfigure(1, weight=40, uniform='panel')
         self.grid_rowconfigure(0, weight=1)
         self.configure(bg=self.colors['bg'])
-
-        # create a display_manager instance
-        display_mgr = DisplayManager()
         
-        # initialize robot
-        print("Initializing robot...")
-        
-        self.system = BallBalancingSystem(gui_mode=True,
-                                          auto_calibrate=auto_calibrate,
-                                          verbose=self.verbose,
-                                          display_manager=display_mgr,
-                                          settings_mgr=settings_mgr)
-        
-            
-        # load some of the GUI settings
+        # load GUI settings FIRST
         if settings_mgr is not None:
             settings = settings_mgr.get()
             self.video_update_interval_ms = settings.display.video_update_interval_ms 
@@ -402,16 +386,13 @@ class BallBalancingGUI(tk.Tk):
             self.frame_skip = settings.display.frame_skip
             self.temp_low = settings.fans.temp_on_celsius - settings.fans.temp_hysteresis_celsius
             self.temp_high = settings.fans.temp_on_celsius
-            
         else:
             self.video_update_interval_ms = 66 
             self.status_update_interval_ms = 500 
             self.frame_skip = 5
         
-        # other settings to maximize camera FPS by limiting CPU overhead amd flickering
         self.use_optimized_canvas = True
         self.frame_counter = 0
-        
         
         self.running = True
         self.current_page = "main"
@@ -420,10 +401,7 @@ class BallBalancingGUI(tk.Tk):
         self.current_path_page = None
         self.is_fullscreen = False
         
-        # set path completion callback
-        self.system.set_path_completion_callback(self._on_path_complete)
-
-        # store page references
+        # store references
         self.main_page = None
         self.paths_page = None
         self.calibration_page = None
@@ -433,42 +411,218 @@ class BallBalancingGUI(tk.Tk):
         self.plat_page = None
         self.pid_page = None
         
-        # store previous shift values for delta calculation
-        self.prev_shift_a = self.system.controller.BA_SHIFT_A
-        self.prev_shift_b = self.system.controller.BA_SHIFT_B
-        self.prev_shift_c = self.system.controller.BA_SHIFT_C
-
-        self.old_shift_a = self.prev_shift_a
-        self.old_shift_b = self.prev_shift_b
-        self.old_shift_c = self.prev_shift_c
+        self.prev_shift_a = 0
+        self.prev_shift_b = 0
+        self.prev_shift_c = 0
+        self.old_shift_a = 0
+        self.old_shift_b = 0
+        self.old_shift_c = 0
         
-        # create UI
+        # flag to track if robot is initialized
+        self.robot_initialized = False
+        
+        # create UI first (immediate visual feedback)
+        print("Creating GUI...")
         self.create_video_panel()
         self.create_control_panel()
-        
-        # set window size and position - start in windowed mode
         self._set_windowed_geometry()
-        
-        # DSI display optimizations
         self._optimize_for_dsi_display()
         
-        # start background tasks
+        # force window to render before fullscreen
+        self.update_idletasks()
+        self.update()
+        
+        # set fullscreen
+        self.after(50, self.toggle_fullscreen)
+        self.bind('<Escape>', self.toggle_fullscreen)
+        self.after(300,self.update)
+        self.after(300,self.update_idletasks)
+        
+        # show a placeholder/loading message on video
+        self._show_loading_placeholder("Initializing Camera...")
+        
+        # start video updates (shows placeholder)
         self.update_video()
         self.update_status()
         
-        # start auto-balance by default
-        self.after(100, self.auto_start)
-        self.after(2000, self.auto_start)  # repeat with larger delay ensuring checkbutton flag presence
-        
-        # fullscreen after startup
-        self.update_idletasks()
-        self.after(100, lambda: self.toggle_fullscreen())
-        self.bind('<Escape>', self.toggle_fullscreen)
-        
-    
-        # setup close protocol
+        # start robot initialization in background
+        self.after(600, lambda: self._initialize_robot_in_background(settings_mgr,
+                                                                     auto_calibrate,
+                                                                     verbose
+                                                                     ))
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-        print("GUI ready")
+        
+        print("GUI ready, initializing robot in background...")
+    
+    
+    
+    def _initialize_robot_in_background(self, settings_mgr, auto_calibrate, verbose):
+        """Initialize robot in background to keep UI responsive."""
+        try:
+            display_mgr = DisplayManager()
+            
+            self.system_status.config(text="System: INITIALIZING...", fg=self.colors['warning'])
+            self.balance_status.config(text="Loading...", fg=self.colors['fg'])
+            self._show_loading_placeholder("Loading Robot...")
+            self.update_idletasks()
+            
+            print("Initializing robot...")
+            
+            # initialize robot WITH platform initialization DEFERRED
+            self.system = BallBalancingSystem(
+                gui_mode=True,
+                auto_calibrate=auto_calibrate,
+                verbose=verbose,
+                display_manager=display_mgr,
+                settings_mgr=settings_mgr,
+                defer_platform_init=True  # don't initialize platform yet
+            )
+            
+            print("Robot initialized")
+            
+            # connect camera to video canvas
+            if hasattr(self, 'video_canvas'):
+                self.video_canvas.set_camera(self.system.camera)
+            
+            # refresh the UI
+            self.update_idletasks()
+            
+            # wait for first frame
+            if verbose:
+                print("Waiting for camera to start...")
+            max_wait = 5.0
+            start_time = time()
+            frame_received = False
+            
+            while time() - start_time < max_wait:
+                if hasattr(self.system.camera, 'latest_frame') and self.system.camera.latest_frame is not None:
+                    frame_received = True
+                    if verbose:
+                        print(f"Camera ready after {time() - start_time:.3f}s")
+                    break
+                sleep(0.1)
+            
+            if not frame_received:
+                print("Warning: Camera not ready after waiting, continuing anyway...")
+            
+            # start the video stream, before lifting the platform
+            if verbose:
+                print("Starting video stream BEFORE platform lifts")
+            self.robot_initialized = True
+            self.frame_counter = self.frame_skip + 1
+            self.update_video()
+            self.update_idletasks()
+            
+            # set path completion callback
+            self.system.set_path_completion_callback(self._on_path_complete)
+            
+            # update stored shift values
+            self.prev_shift_a = self.system.controller.BA_SHIFT_A
+            self.prev_shift_b = self.system.controller.BA_SHIFT_B
+            self.prev_shift_c = self.system.controller.BA_SHIFT_C
+            self.old_shift_a = self.prev_shift_a
+            self.old_shift_b = self.prev_shift_b
+            self.old_shift_c = self.prev_shift_c
+            
+            # lift the platform in background thread
+            # this allows the video to keep updating while platform lifts
+            def lift_platform():
+                if verbose:
+                    print("Lifting platform in background thread")
+                self.system._initialize_platform()
+                if verbose:
+                    print("Platform lift complete")
+                # schedule UI update on main thread
+                self.after(0, self._on_platform_lifted)
+            
+            # start platform lift in background
+            threading.Thread(target=lift_platform, daemon=True).start()
+            
+        except Exception as init_error:
+            print(f"Robot initialization error: {init_error}")
+            import traceback
+            traceback.print_exc()
+            error_msg = str(init_error)[:30]
+            self.after(0, lambda msg=error_msg: self.system_status.config(
+                text=f"System: ERROR - {msg}", 
+                fg=self.colors['error']
+            ))
+    
+    
+    
+    def _on_platform_lifted(self):
+        """Called when platform lift is complete (from background thread)."""
+        if self.is_closing:
+            return
+        
+        if self.verbose:
+            print("Platform lift complete - scheduling auto-balance...")
+        
+        # update UI immediately (this is on the main thread via after)
+        self.system_status.config(text="System: READY", fg=self.colors['success'])
+        self.balance_status.config(text="Balance: OFF", fg=self.colors['fg'])
+        
+        # video is already running
+        if hasattr(self, 'video_canvas') and self.video_canvas:
+            try:
+                self.video_canvas.update_idletasks()
+            except:
+                pass
+        
+        # try immediately, then retry after 20ms if not ready
+        self.auto_start()
+        self.after(50, self._retry_auto_start)
+        
+        self.refresh_system_status()
+        self.update_cpu_temperature()
+    
+    
+    
+    def _retry_auto_start(self):
+        """Retry auto-start if not already running."""
+        if self.is_closing:
+            return
+        
+        # only retry if not already balanced
+        if not self.auto_balance_var.get():
+            self.auto_start()
+    
+    
+    
+    def _show_loading_placeholder(self, message="Initializing..."):
+        """Show a loading placeholder on the video canvas."""
+        if self.use_optimized_canvas and isinstance(self.video_display, OptimizedCanvas):
+            # create a placeholder image
+            # get dimensions from camera if available, otherwise use defaults
+            if hasattr(self, 'system') and hasattr(self.system, 'camera'):
+                h = self.system.camera.height
+                w = self.system.camera.width
+            else:
+                # fallback to default camera resolution
+                h, w = 352, 352
+            
+            # add solid background
+            placeholder = np.zeros((h, w, 3), dtype=np.uint8)
+            
+            # add text
+            font_scale = min(w, h) / 352 * 1.0  # Scale font with resolution
+            cv2.putText(placeholder, "MirrorBallBot",
+                        (w//2 - int(100 * font_scale), h//2 - int(60 * font_scale)),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 2)
+            cv2.putText(placeholder, message, 
+                        (w//2 - int(80 * font_scale), h//2 - int(20 * font_scale)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.65, (255, 255, 255), 1)
+            
+            # add some dots to fill the large area
+            circle_radius = max(3, int(4 * font_scale))
+            spacing = int(20 * font_scale)
+            start_x = w//2 - int(30 * font_scale)
+            y_pos = h//2 + int(10 * font_scale)
+            for i in range(4):
+                x = start_x + i * spacing
+                cv2.circle(placeholder, (x, y_pos), circle_radius, (200, 200, 200), -1)
+            
+            self.video_display.update_image(placeholder)
     
     
     
@@ -491,7 +645,6 @@ class BallBalancingGUI(tk.Tk):
         """Set window to fullscreen."""
         self.attributes('-fullscreen', True)
         self.is_fullscreen = True
-#         self.after(200,self.update)
     
     
     
@@ -518,16 +671,37 @@ class BallBalancingGUI(tk.Tk):
     
     def auto_start(self):
         """Start auto-balance if platform is ready."""
-        if not self.is_closing:
-            if hasattr(self, 'auto_balance_var'):
-                # only enable if platform is at balance position
-                if self.system.controller.at_balance and not self.system.controller.at_home:
+        if self.is_closing:
+            return
+        
+        # check if robot is initialized
+        if not hasattr(self, 'robot_initialized') or not self.robot_initialized:
+            if self.verbose:
+                print("Auto-balance not started: Robot not initialized yet")
+            return
+        
+        # check if auto_balance_var exists
+        if not hasattr(self, 'auto_balance_var'):
+            if self.verbose:
+                print("Auto-balance not started: UI not ready")
+            return
+        
+        # only enable if platform is at balance position and not at home
+        try:
+            if self.system.controller.at_balance and not self.system.controller.at_home:
+                # don't re-enable if already enabled
+                if not self.auto_balance_var.get():
                     self.auto_balance_var.set(True)
                     self.toggle_auto_balance()
                     self.update_idletasks()
-                else:
                     if self.verbose:
-                        print("Auto-balance not started: Platform not at BALANCE position")
+                        print("Auto-balance started successfully")
+            else:
+                if self.verbose:
+                    print(f"Auto-balance not started: at_balance={self.system.controller.at_balance}, at_home={self.system.controller.at_home}")
+        except Exception as e:
+            if self.verbose:
+                print(f"Auto-balance error: {e}")
     
     
     
@@ -601,7 +775,6 @@ class BallBalancingGUI(tk.Tk):
         )
         self.fullscreen_btn.pack()
         self._refresh_fullscreen_btn()
-    
     
     
     
@@ -1054,7 +1227,7 @@ class BallBalancingGUI(tk.Tk):
                             fg='white',
                             font=('Arial', 40, 'bold'), #60
                             command=lambda p=page_name: self.show_page(p))
-            btn.grid(row=i, column=0, sticky="nsew", padx=20, pady=20)  # pads 10
+            btn.grid(row=i, column=0, sticky="nsew", padx=20, pady=20)
             self.calibration_page.grid_rowconfigure(i, weight=1)
             self.remove_highlight(btn)
     
@@ -1396,7 +1569,7 @@ class BallBalancingGUI(tk.Tk):
                                fg=self.colors['fg'], font=('Arial', 18, 'bold'))
         title_label.grid(row=1, pady=(10, 0))
         
-        # ball diameter (moved down one row)
+        # ball diameter
         diameter_frame = tk.LabelFrame(self.ball_page,
                                        text="Ball diameter (mm)",
                                        bg=self.colors['bg'],
@@ -1418,7 +1591,7 @@ class BallBalancingGUI(tk.Tk):
                              )
         spinbox_ball_mm.grid(sticky="n", pady=10)
         
-        # ball color calibration (position maintained)
+        # ball color calibration
         color = tk.LabelFrame(self.ball_page,
                               text="Ball Color Calibration (HSV)",
                               bg=self.colors['bg'],
@@ -1663,9 +1836,9 @@ class BallBalancingGUI(tk.Tk):
         
         def on_kp_change(*args):
             self.system.controller.k_p = self.kp.get()
-            self.system.save_pid_settings()  # ADD THIS LINE
+            self.system.save_pid_settings()
         
-        self.kp.trace_add('write', on_kp_change)  # ADD THIS LINE
+        self.kp.trace_add('write', on_kp_change)
         
         tk.Scale(pid_frame, from_=0.0, to=3.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.kp,
@@ -1679,9 +1852,9 @@ class BallBalancingGUI(tk.Tk):
         
         def on_ki_change(*args):
             self.system.controller.k_i = self.ki.get()
-            self.system.save_pid_settings()  # ADD THIS LINE
+            self.system.save_pid_settings()
         
-        self.ki.trace_add('write', on_ki_change)  # ADD THIS LINE
+        self.ki.trace_add('write', on_ki_change)
         
         tk.Scale(pid_frame, from_=0.0, to=2.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.ki,
@@ -1695,9 +1868,9 @@ class BallBalancingGUI(tk.Tk):
         
         def on_kd_change(*args):
             self.system.controller.k_d = self.kd.get()
-            self.system.save_pid_settings()  # ADD THIS LINE
+            self.system.save_pid_settings()
         
-        self.kd.trace_add('write', on_kd_change)  # ADD THIS LINE
+        self.kd.trace_add('write', on_kd_change)
         
         tk.Scale(pid_frame, from_=0.0, to=2.0, resolution=0.1,
                  orient=tk.HORIZONTAL, variable=self.kd,
@@ -1781,7 +1954,7 @@ class BallBalancingGUI(tk.Tk):
         self.max_integral.set(self.system.controller.MAX_INTEGRAL)
         self.deadzone_counter.set(self.system.controller.DEADZONE_COUNTER_THR)
 
-        # Update controller and save when spinbox changes
+        # update controller and save when spinbox changes
         def update_integral_zone(*args):
             self.system.controller.INTEGRAL_ZONE_TENTHS = self.integral_zone.get() * 10
             if self.system.settings_mgr:
@@ -1790,17 +1963,17 @@ class BallBalancingGUI(tk.Tk):
         
         def update_deadzone(*args):
             self.system.controller.DEADZONE_TENTHS = self.deadzone.get() * 10
-            self.system.controller.save_deadzone()  # This already saves
+            self.system.controller.save_deadzone()
 
         def update_max_integral(*args):
             self.system.controller.MAX_INTEGRAL = self.max_integral.get()
-            if self.system.settings_mgr:  # Save to settings
+            if self.system.settings_mgr:
                 self.system.settings_mgr.get().controller.max_integral = self.system.controller.MAX_INTEGRAL
                 self.system.settings_mgr.save()
 
         def update_deadzone_counter(*args):
             self.system.controller.DEADZONE_COUNTER_THR = self.deadzone_counter.get()
-            if self.system.settings_mgr:  # Save to settings
+            if self.system.settings_mgr:
                 self.system.settings_mgr.get().controller.deadzone_counter_thr = self.system.controller.DEADZONE_COUNTER_THR
                 self.system.settings_mgr.save()
         
@@ -1828,9 +2001,19 @@ class BallBalancingGUI(tk.Tk):
         self.frame_counter += 1
         
         try:
-            if self.frame_counter > self.frame_skip:
-                frame = self.system.camera.get_annotated_frame() if hasattr(self.system.camera, 'get_annotated_frame') else self.system.camera.latest_frame
+            # check if camera is ready and initialized
+            if (hasattr(self, 'robot_initialized') and self.robot_initialized and 
+                hasattr(self, 'system') and hasattr(self.system, 'camera') and 
+                self.system.camera and self.frame_counter > self.frame_skip):
+                
                 self.frame_counter = 0
+                
+                # try to get annotated frame, fall back to raw frame
+                frame = None
+                if hasattr(self.system.camera, 'get_annotated_frame'):
+                    frame = self.system.camera.get_annotated_frame()
+                if frame is None and hasattr(self.system.camera, 'latest_frame'):
+                    frame = self.system.camera.latest_frame
                 
                 if frame is not None:
                     if self.use_optimized_canvas and isinstance(self.video_display, OptimizedCanvas):
@@ -1848,8 +2031,21 @@ class BallBalancingGUI(tk.Tk):
                         imgtk = ImageTk.PhotoImage(image=img)
                         self.video_display.imgtk = imgtk
                         self.video_display.configure(image=imgtk)
+                else:
+                    # camera not ready yet - show placeholder
+                    if self.frame_counter > self.frame_skip * 2:
+                        self.frame_counter = 0
+                        self._show_loading_placeholder("Camera starting...")
+            else:
+                # robot not initialized yet - show placeholder
+                if self.frame_counter > self.frame_skip * 2:
+                    self.frame_counter = 0
+                    self._show_loading_placeholder(
+                        "Initializing..." if not hasattr(self, 'robot_initialized') or not self.robot_initialized else "Camera starting..."
+                    )
         
         except Exception as e:
+            # silently ignore errors during initialization
             pass
         
         if not self.is_closing:
@@ -1885,7 +2081,7 @@ class BallBalancingGUI(tk.Tk):
             # not on raspberry pi or thermal zone not available
             self.temp_value.config(text="N/A", fg=self.colors['fg'])
         except Exception as e:
-            # other errors - just show error indicator
+            # other errors, just show error indicator
             self.temp_value.config(text="ERR", fg=self.colors['error'])
         
         # schedule next update if not closing
@@ -1979,7 +2175,7 @@ class BallBalancingGUI(tk.Tk):
     def _protected_action(self, button, action):
         """Run action with button disabled during execution."""
         if button.cget('state') == tk.DISABLED:
-            return  # Already running
+            return  # already running
         
         button.config(state=tk.DISABLED)
         self.update_idletasks()
@@ -2077,7 +2273,7 @@ class BallBalancingGUI(tk.Tk):
     
     def start_free_path(self, path_points=None, mode="continuous"):
         if mode == "continuous":
-            # continuous finger tracking mode - handled by on_touch callback
+            # continuous finger tracking mode, handled by on_touch callback
             self._ensure_auto_balance()
             pass
         elif mode == "playback" and path_points:
@@ -2167,9 +2363,10 @@ class BallBalancingGUI(tk.Tk):
             self._set_fullscreen_geometry()
             self.update_idletasks()
             self.fullscreen_btn.config(text="\u25BC")
+            self.after(100, self._refresh_fullscreen_btn)
             self.after(200, self._refresh_navigation_btns)
             self.after(200, self._refresh_status_bar)
-            self.after(200, self._refresh_fullscreen_btn)
+            
             
         
         # force canvas to recalculate centering by updating its dimensions directly
@@ -2204,8 +2401,14 @@ class BallBalancingGUI(tk.Tk):
             return
         try:
             if hasattr(self, 'fullscreen_btn') and self.fullscreen_btn.winfo_exists():
-                self.fullscreen_btn.configure(fg=self.fullscreen_btn.cget('fg'))
+                # force complete redraw
+                self.fullscreen_btn.configure(
+                    fg=self.fullscreen_btn.cget('fg'),
+                    bg=self.fullscreen_btn.cget('bg')
+                )
                 self.fullscreen_btn.update_idletasks()
+                # force Tk to process all pending events
+                self.update_idletasks()
                 self.update()
         except tk.TclError:
             pass
@@ -2257,7 +2460,7 @@ class BallBalancingGUI(tk.Tk):
             return
         if hasattr(self, 'auto_balance_var'):
             if self.auto_balance_var.get():
-                # Safety check before enabling
+                # safety check before enabling
                 if self.system.controller.at_home:
                     self.system_status.config(text="Cannot balance: Platform at HOME", fg=self.colors['error'])
                     self.auto_balance_var.set(False)
@@ -2374,7 +2577,7 @@ class BallBalancingGUI(tk.Tk):
             self.balance_status.config(text="Balance: OFF", fg=self.colors['fg'])
             self.system_status.config(text="System: MOTORS OFF", fg=self.colors['error'])
             
-            # update button - force color change
+            # update button, force color change
             self.estop_btn.config(
                 text="ACTIVATE MOTORS", 
                 bg=self.colors['success'], 
@@ -2402,7 +2605,7 @@ class BallBalancingGUI(tk.Tk):
             # enable motors
             self.system.mc.enable_motors()
             
-            # update button - force color change
+            # update button, force color change
             self.estop_btn.config(
                 text="EMERGENCY STOP", 
                 bg=self.colors['error'], 
@@ -2873,7 +3076,7 @@ class PathConfigPage:
         button_frame = tk.Frame(bottom_frame, bg=self.gui.colors['bg'])
         button_frame.grid(row=0, column=2, sticky="e")
         
-        # Use grid instead of pack
+        # use grid instead of pack
         self.start_btn = tk.Button(button_frame, text=f"START\n{self.path_name.upper()}\nPATH",
                                    bg=self.gui.colors['accent'], fg='white',
                                    font=('Arial', 15, 'bold'), height=3,
@@ -3002,7 +3205,7 @@ class CirclePathPage(PathConfigPage):
         radius_frame.grid_columnconfigure(0, weight=0)  # label
         radius_frame.grid_columnconfigure(1, weight=1)  # slider
         
-        # Label: "Radius" split into two rows
+        # label: "Radius" split into two rows
         radius_label_frame = tk.Frame(radius_frame, bg=self.gui.colors['bg'])
         radius_label_frame.grid(row=0, column=0, sticky="w", padx=(0, 10))
         
@@ -3011,7 +3214,7 @@ class CirclePathPage(PathConfigPage):
         tk.Label(radius_label_frame, text="(mm)", bg=self.gui.colors['bg'],
                 fg=self.gui.colors['fg'], font=('Arial', 12)).pack(anchor='w')
         
-        # Radius slider (reduced length)
+        # radius slider (reduced length)
         self.radius = tk.IntVar(value=70)
         radius_slider = tk.Scale(radius_frame, from_=40, to=100, orient=tk.HORIZONTAL,
                                 variable=self.radius, bg=self.gui.colors['bg'],
@@ -3026,7 +3229,7 @@ class CirclePathPage(PathConfigPage):
         speed_frame.grid_columnconfigure(0, weight=0)  # label
         speed_frame.grid_columnconfigure(1, weight=1)  # slider
         
-        # Label: "Speed" split into two rows
+        # label: "Speed" split into two rows
         speed_label_frame = tk.Frame(speed_frame, bg=self.gui.colors['bg'])
         speed_label_frame.grid(row=0, column=0, sticky="w", padx=(0, 10))
         
@@ -3035,7 +3238,7 @@ class CirclePathPage(PathConfigPage):
         tk.Label(speed_label_frame, text="factor", bg=self.gui.colors['bg'],
                 fg=self.gui.colors['fg'], font=('Arial', 12)).pack(anchor='w')
         
-        # Speed slider (reduced length)
+        # speed slider (reduced length)
         self.speed = tk.DoubleVar(value=1.5)
         speed_slider = tk.Scale(speed_frame, from_=1.0, to=2.5, resolution=0.1,
                                orient=tk.HORIZONTAL, variable=self.speed,
@@ -3050,11 +3253,11 @@ class CirclePathPage(PathConfigPage):
         dir_frame.grid_columnconfigure(0, weight=0)  # label
         dir_frame.grid_columnconfigure(1, weight=1)  # radios
         
-        # Label: "Dir"
+        # label: "Dir"
         tk.Label(dir_frame, text="Direct.", bg=self.gui.colors['bg'],
                 fg=self.gui.colors['fg'], font=('Arial', 12, 'bold')).grid(row=0, column=0, sticky="w", padx=(0, 10))
         
-        # Radiobuttons container (right side)
+        # radiobuttons container (right side)
         radios_frame = tk.Frame(dir_frame, bg=self.gui.colors['bg'])
         radios_frame.grid(row=0, column=1, sticky="w")
         
@@ -3220,7 +3423,7 @@ class TrianglePathPage(PathConfigPage):
         up_radio.pack(side=tk.LEFT)
         self.gui.remove_highlight(up_radio) 
 
-        # Set default to point_down (left side)
+        # set default to point_down (left side)
         self.orientation.set("point_down")
         row += 1
         
@@ -3358,7 +3561,7 @@ class FreePathPage(PathConfigPage):
         # status label
         self.status_label = tk.Label(content, text="Ready\nTouch the screen to move the ball",
                                      bg=self.gui.colors['bg'], fg=self.gui.colors['fg'],
-                                     font=('Arial', 16)) # HERE 13
+                                     font=('Arial', 16))
         self.status_label.grid(row=row, column=0, pady=10)
         row += 1
         
@@ -3417,7 +3620,6 @@ class FreePathPage(PathConfigPage):
             # stop continuous mode temporarily
             if self.tracking_active:
                 self.tracking_active = False
-#                 self.gui.stop_current_path()
             
             # start recording in robot
             self.gui.system.free_path_start_recording()
@@ -3505,7 +3707,7 @@ class FreePathPage(PathConfigPage):
     
     def _revert_status_message(self):
         """Revert status label to normal message."""
-        # Check if status_label still exists in the widget hierarchy
+        # check if status_label still exists in the widget hierarchy
         try:
             if not self.status_label.winfo_exists():
                 return
@@ -3540,10 +3742,8 @@ class FreePathPage(PathConfigPage):
     
     def play_recorded_path(self):
         if self._playing:
-            # HERE
-            print("Playback already in progress, ignoring")
-            # HERE
-            
+            if self.verbose:
+                print("Playback already in progress, ignoring")
             return
         
         if self.recorded_path:
@@ -3554,7 +3754,7 @@ class FreePathPage(PathConfigPage):
             
             if self.tracking_active:
                 self.tracking_active = False
-#                 self.gui.stop_current_path()
+            
             self.status_label.config(text="Playing recorded path...")
             self.gui.system.free_path_playback(self.recorded_path,
                                                completion_callback=self._on_playback_complete)

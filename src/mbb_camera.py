@@ -1,5 +1,5 @@
 """
-Andrea Favero 20260605
+Andrea Favero 20260906
 
 MirrorBallBot (MBB), an alternative ball balance robot
 
@@ -39,7 +39,7 @@ SOFTWARE.
 # CAMERA CLASS for MIRRORBALLBOT by ANDREA FAVERO
 # ============================================================================
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 # limit the feedback (prints to Shell) from the camera module
 from os import environ
@@ -384,6 +384,21 @@ class Camera:
     
     
     
+    def get_placeholder_frame(self):
+        """Generate a placeholder frame while camera is initializing."""
+        placeholder = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        
+        # adding some visual content
+        cv2.putText(placeholder, "Initializing Camera...", 
+                    (self.width//2 - 100, self.height//2), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        cv2.putText(placeholder, "Please wait", 
+                    (self.width//2 - 60, self.height//2 + 40), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+        return placeholder
+    
+    
+    
     def add_quadrants(self, image):
         """Plot lines to show the platform quadrants (unchanged from original)"""
         
@@ -701,7 +716,7 @@ class Camera:
         def mouse_callback(event, x, y, flags, param):
             nonlocal last_user_interaction_time, user_interacted
             if event == cv2.EVENT_LBUTTONDOWN:
-                # Check if click is on any button
+                # check if click is on any button
                 button_clicked = False
                 for button_name, rect in button_rects.items():
                     if rect[0] <= x <= rect[0] + rect[2] and rect[1] <= y <= rect[1] + rect[3]:
@@ -738,7 +753,7 @@ class Camera:
                     
                     if idle_time > WARNING_TIMEOUT and not warning_shown:
                         print(f"\n⚠️  Warning: No activity for {int(idle_time)} seconds!")
-                        print(f"   Calibration will auto-quit in {WATCHDOG_TIMEOUT - int(idle_time)} seconds\n")
+                        print(f" Calibration will auto-quit in {WATCHDOG_TIMEOUT - int(idle_time)} seconds\n")
                         warning_shown = True
                     
                     if idle_time > WATCHDOG_TIMEOUT:
@@ -778,28 +793,28 @@ class Camera:
                 mask = cv2.inRange(hsv, lower, upper)
                 result = cv2.bitwise_and(working_frame, working_frame, mask=mask)
                 
-                # Calculate available space
+                # calculate available space
                 h, w = working_frame.shape[:2]  # w = 220, h = 220
 
-                # Use wider buttons to fill the space
+                # use wider buttons to fill the space
                 button_width = 180  # Much wider than 125
                 button_margin = 10
 
-                # Calculate total width needed
-                total_width = w + button_width + 15 #30  # 220 + 180 + 30 = 430 (fits in 450 window)
+                # calculate total width needed
+                total_width = w + button_width + 15 # 220 + 180 + 30 = 430 (fits in 450 window)
 
-                # Create canvas with exact needed width
+                # create canvas with exact needed width
                 canvas = np.ones((h, total_width, 3), dtype=np.uint8) * 240
 
-                # Center the image vertically (it's already full height)
-                # Position image at the left with some padding
-                image_padding = 5 #10
+                # center the image vertically (it's already full height)
+                # position image at the left with some padding
+                image_padding = 5
                 canvas[0:h, image_padding:image_padding + w] = working_frame
 
-                # Button X position (to the right of image)
-                start_x = image_padding + w + 5 #10  # 10px gap between image and buttons
+                # button X position (to the right of image)
+                start_x = image_padding + w + 5  # 5px gap between image and buttons
 
-                # Button Y positions (start from top)
+                # button Y positions (start from top)
                 start_y = 5
                 button_height = 45
 
@@ -808,7 +823,8 @@ class Camera:
                 button_rects['save'] = save_rect
                 cv2.rectangle(canvas, (start_x, start_y), (start_x + button_width, start_y + button_height), (0, 255, 0), -1)
                 cv2.rectangle(canvas, (start_x, start_y), (start_x + button_width, start_y + button_height), (0, 100, 0), 2)
-                # Center text in wider button
+                
+                # center text in wider button
                 text_x = start_x + (button_width // 2) - 35
                 cv2.putText(canvas, "SAVE", (text_x, start_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
 
@@ -830,7 +846,7 @@ class Camera:
                 text_x = start_x + (button_width // 2) - 35
                 cv2.putText(canvas, "QUIT", (text_x, quit_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
-                # Timer bar (below QUIT button, using full button width)
+                # timer bar (below QUIT button, using full button width)
                 if watchdog_active:
                     idle_time = time() - last_user_interaction_time
                     time_left = max(0, WATCHDOG_TIMEOUT - int(idle_time))
@@ -840,7 +856,7 @@ class Camera:
                     bar_width = button_width - 6
                     bar_x = start_x + 3
                     
-                    # Timer text above bar
+                    # timer text above bar
                     if time_left > 10:
                         timer_color = (0, 255, 0)
                     elif time_left > 5:
@@ -855,9 +871,9 @@ class Camera:
                     cv2.putText(canvas, timer_text, (text_x, timer_y - 10), 
                                cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 2)
                     
-                    # Timer bar background
+                    # timer bar background
                     cv2.rectangle(canvas, (bar_x, timer_y), (bar_x + bar_width, timer_y + bar_height), (100, 100, 100), -1)
-                    # Timer bar foreground
+                    # timer bar foreground
                     bar_width_current = int(bar_width * (time_left / WATCHDOG_TIMEOUT))
                     cv2.rectangle(canvas, (bar_x, timer_y), (bar_x + bar_width_current, timer_y + bar_height), timer_color, -1)
                 
@@ -964,10 +980,11 @@ class Camera:
             (success, lower_color, upper_color)
         """
         
-        if show_windows:
-            print("\n[Auto Calibration] Starting with visual feedback...")
-        else:
-            print("\n[Auto Calibration] Running silently (no windows)...")
+        if self.verbose:
+            if show_windows:
+                print("\n[Auto Calibration] Starting with visual feedback...")
+            else:
+                print("\n[Auto Calibration] Running silently (no windows)...")
         
         # store original values in case of failure
         original_lower = self.lower_color.copy() if self.lower_color is not None else np.array([0, 0, 0])
@@ -995,7 +1012,8 @@ class Camera:
                 self.display_manager.poll_events(10)
             
             # wait before starting
-            print(f"  Waiting {pause_before} seconds...")
+            if self.verbose:
+                print(f"Waiting {pause_before} seconds before starting the HSV calibration...")
             for _ in range(int(pause_before * 10)):
                 if self.display_manager:
                     self.display_manager.poll_events(100)
@@ -1071,7 +1089,7 @@ class Camera:
             test_deltas = range(-max_expand, max_expand + 1, step)
         
         if self.verbose:
-            print(f"  Testing {channel_name} adjustments...")
+            print(f"Testing {channel_name} adjustments...")
         
         for delta in test_deltas:
             if delta == 0:
@@ -1088,7 +1106,7 @@ class Camera:
                 test_upper[0] = np.clip(new_high, 0, 179)
                 
             elif channel_idx == 1:  # Saturation
-                if delta < 0:       # contracting - raise lower bound
+                if delta < 0:       # contracting, raise lower bound
                     new_low = int(base_lower[1]) - delta  # delta negative, so subtract makes it larger
                     test_lower[1] = np.clip(new_low, 100, 255)  # never below 100
                     # keep upper bound same when contracting lower
@@ -1147,7 +1165,7 @@ class Camera:
             # count other contours
             other_count = len(test_contours) - 1
             
-            # calculate score - VERY conservative
+            # calculate score, VERY conservative
             ball_score = (ball_area / base_ball_area) * 1000
             
             # HEAVY penalties for ANY other contours
@@ -1207,7 +1225,7 @@ class Camera:
             
             # wait before starting (user can see windows)
             if self.verbose and pause_before > 0:
-                print(f"  Waiting {pause_before} seconds before calibration...")
+                print(f"Waiting {pause_before} seconds before calibration...")
             for _ in range(int(pause_before * 10)):
                 self.display_manager.poll_events(100)
                 sleep(0.1)
@@ -1380,7 +1398,7 @@ class Camera:
                         
                         if not shape_result['is_ball']:
                             if self.verbose:
-                                print(f"  Rejected: {', '.join(shape_result['reasons'])}")
+                                print(f"Rejected: {', '.join(shape_result['reasons'])}")
                             continue
                         
                         M = cv2.moments(contour)
@@ -1393,7 +1411,7 @@ class Camera:
                                 continue
                                 
                             if self.verbose:
-                                print(f"  Found ball candidate with hue range ±{test_h_range}!")
+                                print(f"Found ball candidate with hue range ±{test_h_range}!")
                             
                             ball_found_for_color = True
                             
@@ -1421,7 +1439,8 @@ class Camera:
             
             else:
                 h_range = min(40, h_range_base)
-                print(f"Using ranges: H±{h_range}, S±{s_range}, V±{v_range}")
+                if self.verbose:
+                    print(f"Using ranges: H±{h_range}, S±{s_range}, V±{v_range}")
                 
                 test_lower = np.array([max(0, h_center - h_range), max(30, s_center - s_range), max(30, v_center - v_range)], dtype=np.uint8)
                 test_upper = np.array([min(179, h_center + h_range), min(255, s_center + s_range), min(255, v_center + v_range)], dtype=np.uint8)
@@ -1461,7 +1480,7 @@ class Camera:
                     
                     if not shape_result['is_ball']:
                         if self.verbose:
-                            print(f"  Rejected: {', '.join(shape_result['reasons'])}")
+                            print(f"Rejected: {', '.join(shape_result['reasons'])}")
                         continue
                     
                     M = cv2.moments(contour)
@@ -1474,7 +1493,7 @@ class Camera:
                             continue
                         
                         if self.verbose:
-                            print(f"  Found ball candidate!")
+                            print(f"Found ball candidate!")
                         
                         if best_ball is None or shape_result['metrics']['circularity'] > best_ball['circularity']:
                             best_ball = {
@@ -1498,7 +1517,7 @@ class Camera:
         
         if self.verbose:
             print(f"\n=== Best ball found with Color {best_color_idx+1} ===")
-            print(f"  Color HSV: {best_ball['color_hsv']}")
+            print(f"Color HSV: {best_ball['color_hsv']}")
         
         # refine thresholds
         ball_mask = np.zeros((h, w), dtype=np.uint8)
@@ -1562,7 +1581,7 @@ class Camera:
         # wait after calibration if requested
         if display_windows and pause_after > 0:
             if self.verbose:
-                print(f"  Waiting {pause_after} seconds after calibration...")
+                print(f"Waiting {pause_after} seconds, to show the HSV calibration results...")
             for _ in range(int(pause_after * 10)):
                 if self.display_manager:
                     self.display_manager.poll_events(100)
@@ -1617,7 +1636,7 @@ class Camera:
         
         # 7. contour smoothness (Hu moments - 1st invariant, scale invariant)
         hu = cv2.HuMoments(moments).flatten()
-        hu1 = abs(hu[0])  # first Hu moment - higher for complex shapes
+        hu1 = abs(hu[0])  # first Hu moment, higher for complex shapes
         
         # decision logic
         reasons = []
@@ -1649,7 +1668,7 @@ class Camera:
         if 0.65 < circularity < 0.85:
             
             if self.verbose:
-                print(f"  Shape analysis:")
+                print(f"Shape analysis:")
                 print(f"Circularity: {circularity:.3f}")
                 print(f"Aspect ratio: {aspect_ratio:.2f}")
                 print(f"Circle fill: {circle_fill_ratio:.3f}")
