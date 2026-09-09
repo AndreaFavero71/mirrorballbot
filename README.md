@@ -85,19 +85,24 @@ This allows for a larger platform while keeping the robot compact.
 
 <br><br>
 ## Documentation
-The [Quick Start Guide](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_QuickStartGuide.pdf) provides the essential information to build the robot, as a PDF file of approx. 50pages.<br><br>
+The [Quick Start Guide](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_QuickStartGuide.pdf) provides the essential information to build the robot, as a PDF file of approx. 50 pages.<br>
 
-
-The [Reference Manual](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_ReferenceManual.pdf) provides detailed information, yet the **160+ page PDF file** could intimidate in the first place.<br>
-It provides exhaustive coverage of:
+The [Reference Manual](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_ReferenceManual.pdf) provides detailed information, yet the **~170 page PDF file** could intimidate at first glance. It provides exhaustive coverage of:
 - BOM
 - Wooden base or fully 3D printable version.
 - 3D printing and acrylic laser cutting.
 - PCB assembly & soldering maps (250+ pads).
-- Detailed step-by-step mechanical assembly (29 steps with photos).
+- Detailed step-by-step mechanical assembly (36 steps with photos).
 - Software environment setup and configuration parameters.
-- GUI operation, PID tuning, and troubleshooting/QA.<br>
+- GUI operation, PID tuning, and troubleshooting/QA.<br><br>
 
+
+| Manual | Best for |
+| :--- | :--- |
+| **Quick Start Guide** | Most makers. It's concise, action-oriented, and will get you from zero to a working robot with minimal friction. |
+| **Reference Manual** | When you want to understand *why* something works, encounter an issue not covered in the Quick Start Guide, or are curious about the design process, custom I2C protocol, or PID controller theory. |
+
+**Recommendation:** Start with the Quick Start Guide. Follow the steps, and refer to the Reference Manual only when you need more detail.<br><br>
 **Download the manuals from the [`/doc`](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/) folder:**
 - [Quick Start Guide (~50 pages)](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_QuickStartGuide.pdf)
 - [Reference Manual (~170 pages)](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_ReferenceManual.pdf)
