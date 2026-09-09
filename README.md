@@ -4,7 +4,7 @@ An open-source ball-balancing robot that sees through a mirror.<br><br>
 MirrorBallBot keeps a ball centred on a circular platform by tilting it with three stepper motors.<br>
 You can control the ball with your finger on a touchscreen, record paths, or let it auto-balance.<br>
 MirrorBallBot is fully open-source:
- - extensive instruction manual (~160 pages)
+ - two instruction manuals (QuickStartGuide and Reference Manual)
  - stl and step files
  - code
 
@@ -85,7 +85,10 @@ This allows for a larger platform while keeping the robot compact.
 
 <br><br>
 ## Documentation
-The complete instruction manual is available as a **160+ page PDF file**.<br>
+The [Quick Start Guide](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_QuickStartGuide.pdf) provides the essential information to build the robot, as a PDF file of approx. 50pages.<br><br>
+
+
+The [Reference Manual](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_ReferenceManual.pdf) provides detailed information, yet the **160+ page PDF file** could intimidate in the first place.<br>
 It provides exhaustive coverage of:
 - BOM
 - Wooden base or fully 3D printable version.
@@ -95,18 +98,20 @@ It provides exhaustive coverage of:
 - Software environment setup and configuration parameters.
 - GUI operation, PID tuning, and troubleshooting/QA.<br>
 
-Download the How to make instruction manual from [doc/](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/How_to_make_MirrorBallBot.pdf) folder
+**Download the manuals from the [`/doc`](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/) folder:**
+- [Quick Start Guide (~50 pages)](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_QuickStartGuide.pdf)
+- [Reference Manual (~170 pages)](https://github.com/AndreaFavero71/mirrorballbot/blob/main/doc/MirrorBallBot_ReferenceManual.pdf)
 
 
 <br><br>
 ## Quick Start (for experienced makers)
 
 1. Decide if wooden base or fully 3D-printed version. If wooden, CNC or route the base.
-2. 3D print all parts (no supports except Power_in case of wooden base).
+2. 3D print all parts (0.2mm layer, 30% infill, no supports, suggested PETG).
 3. Laser cut acrylic (translucent plate + mirror).
 4. Assemble the MirrorBallBot PCB (250+ solder pads).
 5. Flash each RP2040-Zero with **MicroPython v1.24 Pimoroni Tiny2040** uf2 firmware (https://micropython.org/download/PIMORONI_TINY2040/).
-6. Copy the MicroPython file into the RP2040-Zero boards (files at https://github.com/AndreaFavero71/mirrorballbot/tree/main/rp2040).
+6. Copy the MicroPython file to the RP2040-Zero boards (files at https://github.com/AndreaFavero71/mirrorballbot/tree/main/rp2040).
 7. Set up the Raspberry Pi:
      - Flash a 32-bit Desktop OS (Trixie, or Bookworm) into a microSD.
       ```
